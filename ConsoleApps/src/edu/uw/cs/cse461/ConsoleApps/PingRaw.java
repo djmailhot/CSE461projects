@@ -1,7 +1,13 @@
 package edu.uw.cs.cse461.ConsoleApps;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.net.SocketException;
 
 import edu.uw.cs.cse461.ConsoleApps.PingInterface.PingRawInterface;
 import edu.uw.cs.cse461.Net.Base.NetBase;
@@ -100,6 +106,25 @@ public class PingRaw extends NetLoadableConsoleApp implements PingRawInterface {
 	@Override
 	public ElapsedTimeInterval udpPing(String hostIP, int udpPort, int socketTimeout, int nTrials) {
 		ElapsedTime.start("PingRaw_UDPTotalDelay");
+		for (int i = 0; i < nTrials; i++) {
+			DatagramSocket socket;	
+			try {
+				InetSocketAddress address = new InetSocketAddress(hostIP, udpPort);
+				socket = new DatagramSocket((SocketAddress)address);
+			} catch (IOException e) {
+				e.printStackTrace();
+				break;
+			}
+			try {
+				socket.setSoTimeout(socketTimeout);
+			} catch (SocketException e) {
+				e.printStackTrace();
+				break;
+			}
+			byte[] buf = new byte[0];
+			udpSendPacket(socket, new DatagramPacket(buf, 0), 0);
+		}
+		
 		ElapsedTime.stop("PingRaw_UDPTotalDelay");
 		return ElapsedTime.get("PingRaw_UDPTotalDelay");
 	}
@@ -111,6 +136,7 @@ public class PingRaw extends NetLoadableConsoleApp implements PingRawInterface {
 	@Override
 	public ElapsedTimeInterval tcpPing(String hostIP, int tcpPort, int socketTimeout, int nTrials) {
 		ElapsedTime.start("PingRaw_TCPTotal");
+		
 		ElapsedTime.stop("PingRaw_TCPTotal");
 		return ElapsedTime.get("PingRaw_TCPTotal");
 	}

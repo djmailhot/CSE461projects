@@ -112,6 +112,7 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 	@Override
 	public TransferRateInterval udpDataXfer(String hostIP, int udpPort, int socketTimeout, int xferLength, int nTrials) {
 		TransferRate.start("udp");
+		
 		TransferRate.stop("udp", 1);
 		return TransferRate.get("udp");
 	}
@@ -125,6 +126,7 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 	@Override
 	public TransferRateInterval tcpDataXfer(String hostIP, int tcpPort, int socketTimeout, int xferLength, int nTrials) {
 		TransferRate.start("tcp");
+		
 		TransferRate.stop("tcp", 1);
 		return TransferRate.get("tcp");
 	}
