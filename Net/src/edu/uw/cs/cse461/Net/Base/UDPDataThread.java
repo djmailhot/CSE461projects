@@ -23,8 +23,7 @@ public class UDPDataThread implements DataThreadInterface {
 	private boolean _timeToClose = false;      //flag set when end() is called to signal the thread to shut down
 	private int _xferSize;						  //size of server response in bytes
 	private final static int MAX_PACKET_SIZE = 1000;	      //size of the largest packet in bytes; we will split _xferSize
-												  //  bytes across packets no larger than this.
-	
+												  //  bytes across packets no larger than this.	
 
 	/*************
 	 * Constructs a new thread, but does not start it running

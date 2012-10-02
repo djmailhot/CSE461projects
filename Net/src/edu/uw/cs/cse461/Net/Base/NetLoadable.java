@@ -1,9 +1,5 @@
 package edu.uw.cs.cse461.Net.Base;
 
-import java.io.IOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-
 /**
  * Base class for OS loadable classes.  In addition to the methods shown
  * here, each class implementing this interface must provide
@@ -76,25 +72,6 @@ public abstract class NetLoadable implements NetLoadableInterface {
 		public void shutdown() {
 		}
 		
-		public void udpSendPacket(DatagramSocket socket, DatagramPacket packet, int len) {
-			try {
-				socket.send(packet);
-			} catch (IOException e) {
-				e.printStackTrace();
-				return;
-			}
-			DatagramPacket response = new DatagramPacket(new byte[len], len);
-			try {
-				socket.receive(response);
-			} catch (IOException e) {
-				e.printStackTrace();
-				return;
-			}
-			if (response.getLength() != len) {
-				System.err.println("UDPSendPacket failed to receive a response of the proper length");
-				return;
-			}
-		}
 	}
 	//---------------------------------------------------------------------------------------------------
 
