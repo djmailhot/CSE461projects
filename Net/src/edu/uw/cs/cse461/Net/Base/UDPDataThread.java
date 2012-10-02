@@ -6,7 +6,7 @@ import java.net.DatagramSocket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 
-public class UDPDataThread implements Runnable{
+public class UDPDataThread implements DataThreadInterface {
 	private final static int TIMEOUT = 750;
 	private int _portNumber;
 	private DatagramSocket _dSocket;

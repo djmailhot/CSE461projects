@@ -15,7 +15,7 @@ import java.net.SocketTimeoutException;
  * @author mmattb
  *
  */
-public class TCPDataThread implements Runnable{
+public class TCPDataThread implements DataThreadInterface {
 	private final static int TIMEOUT = 750; //time in MS between checks to see if its time to shut down
 	private int _portNumber;					//port number to receive connections in
 	private ServerSocket _server;				//a server socket for the current available connection
