@@ -15,7 +15,8 @@ import java.lang.Math;
  * @author mmattb
  *
  */
-public class UDPDataThread implements Runnable{
+public class UDPDataThread implements DataThreadInterface {
+
 	private final static int TIMEOUT = 750;    //time in MS between checks to see if its time to shut down
 	private int _portNumber;					  //port number to receive connections in
 	private DatagramSocket _dSocket; 		      //a server socket for the current available connection
@@ -23,7 +24,6 @@ public class UDPDataThread implements Runnable{
 	private int _xferSize;						  //size of server response in bytes
 	private final static int MAX_PACKET_SIZE = 1000;	      //size of the largest packet in bytes; we will split _xferSize
 												  //  bytes across packets no larger than this.
-	
 	
 
 	/*************

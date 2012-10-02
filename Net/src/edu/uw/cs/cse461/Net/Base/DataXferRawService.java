@@ -1,12 +1,5 @@
 package edu.uw.cs.cse461.Net.Base;
 
-import java.io.OutputStream;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-
 import edu.uw.cs.cse461.Net.Base.NetLoadable.NetLoadableService;
 import edu.uw.cs.cse461.util.ConfigManager;
 import edu.uw.cs.cse461.util.Log;
@@ -28,16 +21,37 @@ public class DataXferRawService extends NetLoadableService  {
 	public static final int[] XFERSIZE = {1000, 10000, 100000, 1000000};
 
 	private int mBasePort;
+	private DataThreadInterface[] uDPDataThreads;
+	private DataThreadInterface[] tCPDataThreads;
 	
 	public DataXferRawService() throws Exception {
 		super("dataxferraw", true);
-		
+
 		ConfigManager config = NetBase.theNetBase().config();
 		mBasePort = config.getAsInt("dataxferraw.baseport", 0, TAG);
 		if ( mBasePort == 0 ) throw new RuntimeException("dataxferraw service can't run -- no dataxferraw.baseport entry in config file");
+
+		// Init socket-listening threads
+		uDPDataThreads = new DataThreadInterface[NPORTS];
+		tCPDataThreads = new DataThreadInterface[NPORTS];
+		for(int i=0; i < NPORTS; i++) {
+			int portNum = mBasePort + i;
+			uDPDataThreads[i] = new UDPDataThread(portNum, XFERSIZE[i]);
+			tCPDataThreads[i] = new TCPDataThread(portNum, XFERSIZE[i]);
+		}
 		
+		startup();
 	}
 
+	/**
+	 * Startup the service by opening sockets to listen on the intended ports.
+	 */
+	private void startup() {
+		for(int i=0; i < NPORTS; i++) {
+			uDPDataThreads[i].run();
+			tCPDataThreads[i].run();
+		}
+	}
 	
 	/**
 	 * This method is required in every RPCCallable class.  If this object has created any 
@@ -46,6 +60,10 @@ public class DataXferRawService extends NetLoadableService  {
 	@Override
 	public void shutdown() {
 		Log.d(TAG, "Shutting down");
+		for(int i=0; i < NPORTS; i++) {
+			uDPDataThreads[i].end();
+			tCPDataThreads[i].end();
+		}
 		super.shutdown();
 	}
 	
