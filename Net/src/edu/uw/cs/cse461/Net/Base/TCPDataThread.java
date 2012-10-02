@@ -34,16 +34,17 @@ public class TCPDataThread implements Runnable{
 	}
 	
 	/*************
-	 * Starts this thread running if called using the Java Thread functionality.
+	 * Starts this running in its own thread if called using the Java Thread functionality.
 	 * Returns prematurely if the socket cannot be set up properly.  This can happen
 	 *   for many reasons, including:
-	 *   -_portNumber is not available
-	 *   -an exception is thrown while the socket TIMEOUT is being set (perhaps a bad value)
+	 *     - _portNumber is not available
+	 *     - an exception is thrown while the socket TIMEOUT is being set (perhaps a bad value)
 	 * Once the socket is made, it will wait for a connection.  If a connection is established,
 	 *   it will send a packet of size _xferSize bytes to the client.  There are no guarantees
 	 *   what the contents of the packet will be.
 	 * Every TIMEOUT ms, the thread will check the _timeToClose flag to see if its time to shut
-	 *   this server thread down.  The flag can be set to true by a call to end() from another thread.
+	 *   this server thread down.  The flag can be set to 'true' by a call to end() from this or 
+	 *   another thread.
 	 */
 	@Override
 	public void run() {
