@@ -6,7 +6,7 @@ import java.io.InputStreamReader;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
+import java.net.Socket;
 import java.net.SocketException;
 
 import edu.uw.cs.cse461.ConsoleApps.PingInterface.PingRawInterface;
@@ -15,6 +15,8 @@ import edu.uw.cs.cse461.Net.Base.NetLoadable.NetLoadableConsoleApp;
 import edu.uw.cs.cse461.util.ConfigManager;
 import edu.uw.cs.cse461.util.SampledStatistic.ElapsedTime;
 import edu.uw.cs.cse461.util.SampledStatistic.ElapsedTimeInterval;
+import edu.uw.cs.cse461.util.Log;
+import edu.uw.cs.cse461.util.SendAndReceive;
 
 /**
  * Raw sockets version of ping client.
@@ -109,8 +111,7 @@ public class PingRaw extends NetLoadableConsoleApp implements PingRawInterface {
 		for (int i = 0; i < nTrials; i++) {
 			DatagramSocket socket;	
 			try {
-				InetSocketAddress address = new InetSocketAddress(hostIP, udpPort);
-				socket = new DatagramSocket((SocketAddress)address);
+				socket = new DatagramSocket();
 			} catch (IOException e) {
 				e.printStackTrace();
 				break;
@@ -121,10 +122,19 @@ public class PingRaw extends NetLoadableConsoleApp implements PingRawInterface {
 				e.printStackTrace();
 				break;
 			}
-			byte[] buf = new byte[0];
-			udpSendPacket(socket, new DatagramPacket(buf, 0), 0);
-		}
-		
+			InetSocketAddress address = new InetSocketAddress(hostIP, udpPort);
+			byte[] buf = new byte[3];
+			DatagramPacket packet;
+			try {
+				packet = new DatagramPacket(buf, 0, address);
+			} catch (SocketException e) {
+				e.printStackTrace();
+				break;
+			}
+			if (SendAndReceive.udpSendPacket(socket, packet, 0) == null) {
+				Log.w("PingRaw", "Failed to receive a response from the server");
+			}
+		}		
 		ElapsedTime.stop("PingRaw_UDPTotalDelay");
 		return ElapsedTime.get("PingRaw_UDPTotalDelay");
 	}
@@ -136,7 +146,30 @@ public class PingRaw extends NetLoadableConsoleApp implements PingRawInterface {
 	@Override
 	public ElapsedTimeInterval tcpPing(String hostIP, int tcpPort, int socketTimeout, int nTrials) {
 		ElapsedTime.start("PingRaw_TCPTotal");
-		
+		for (int i = 0; i < nTrials; i++) {
+			Socket socket;
+			try {
+				socket = new Socket(hostIP, tcpPort);
+			} catch (IOException e) {
+				e.printStackTrace();
+				break;
+			}
+			try {
+				socket.setSoTimeout(socketTimeout);
+			} catch (SocketException e) {
+				e.printStackTrace();
+				break;
+			}
+			if (SendAndReceive.tcpSendMessage(socket, new byte[0]) == null) {
+				Log.w("PingRaw", "Failed to receive a response from the server");
+			}
+			try {
+				socket.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+				break;
+			}
+		}		
 		ElapsedTime.stop("PingRaw_TCPTotal");
 		return ElapsedTime.get("PingRaw_TCPTotal");
 	}

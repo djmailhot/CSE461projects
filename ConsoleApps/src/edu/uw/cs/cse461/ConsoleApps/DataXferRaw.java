@@ -1,13 +1,21 @@
 package edu.uw.cs.cse461.ConsoleApps;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketException;
 
 import edu.uw.cs.cse461.ConsoleApps.DataXferInterface.DataXferRawInterface;
 import edu.uw.cs.cse461.Net.Base.DataXferRawService;
 import edu.uw.cs.cse461.Net.Base.NetBase;
 import edu.uw.cs.cse461.Net.Base.NetLoadable.NetLoadableConsoleApp;
 import edu.uw.cs.cse461.util.ConfigManager;
+import edu.uw.cs.cse461.util.Log;
+import edu.uw.cs.cse461.util.SendAndReceive;
 import edu.uw.cs.cse461.util.SampledStatistic.TransferRate;
 import edu.uw.cs.cse461.util.SampledStatistic.TransferRateInterval;
 
@@ -112,7 +120,33 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 	@Override
 	public TransferRateInterval udpDataXfer(String hostIP, int udpPort, int socketTimeout, int xferLength, int nTrials) {
 		TransferRate.start("udp");
-		
+		for (int i = 0; i < nTrials; i++) {
+			DatagramSocket socket;	
+			try {
+				socket = new DatagramSocket();
+			} catch (IOException e) {
+				e.printStackTrace();
+				break;
+			}
+			try {
+				socket.setSoTimeout(socketTimeout);
+			} catch (SocketException e) {
+				e.printStackTrace();
+				break;
+			}
+			InetSocketAddress address = new InetSocketAddress(hostIP, udpPort);
+			byte[] buf = new byte[0];
+			DatagramPacket packet;
+			try {
+				packet = new DatagramPacket(buf, 0, address);
+			} catch (SocketException e) {
+				e.printStackTrace();
+				break;
+			}
+			if (SendAndReceive.udpSendPacket(socket, packet, 0) == null) {
+				Log.w("PingRaw", "Failed to receive a response from the server");
+			}
+		}
 		TransferRate.stop("udp", 1);
 		return TransferRate.get("udp");
 	}
@@ -126,6 +160,31 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 	@Override
 	public TransferRateInterval tcpDataXfer(String hostIP, int tcpPort, int socketTimeout, int xferLength, int nTrials) {
 		TransferRate.start("tcp");
+		for (int i = 0; i < nTrials; i++) {
+			Socket socket;
+			try {
+				socket = new Socket();
+				socket.connect(new InetSocketAddress(hostIP, tcpPort));
+			} catch (IOException e) {
+				e.printStackTrace();
+				break;
+			}
+			try {
+				socket.setSoTimeout(socketTimeout);
+			} catch (SocketException e) {
+				e.printStackTrace();
+				break;
+			}
+			if (SendAndReceive.tcpSendMessage(socket, new byte[0]).length() != xferLength) {
+				Log.w("PingRaw", "Failed to receive a response of the proper length from the server");
+			}
+			try {
+				socket.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+				break;
+			}
+		}		
 		
 		TransferRate.stop("tcp", 1);
 		return TransferRate.get("tcp");
