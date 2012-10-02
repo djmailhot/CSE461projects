@@ -48,28 +48,28 @@ public class TCPDataThread implements DataThreadInterface {
 	 */
 	@Override
 	public void run() {
+		//attempt to set up socket on target port number
+		try {
+			_server = new ServerSocket(_portNumber);
+		} catch (IOException e) {
+			e.printStackTrace();
+			return;
+		}
+		
+		//attempt to set the timeout between successive checks of _timeToClose flag
+		try {
+			_server.setSoTimeout(TIMEOUT);
+		} catch (SocketException e) {
+			e.printStackTrace();
+			return;
+		}
+		
+		System.out.println("TCPDataThread.run: server started at port: " + _portNumber);
 			
 		//loop until time to close
 		boolean error = false;
 		boolean timedOut = false;
 		while(true){
-			//attempt to set up socket on target port number
-			try {
-				_server = new ServerSocket(_portNumber);
-			} catch (IOException e) {
-				e.printStackTrace();
-				return;
-			}
-			
-			//attempt to set the timeout between successive checks of _timeToClose flag
-			try {
-				_server.setSoTimeout(TIMEOUT);
-			} catch (SocketException e) {
-				e.printStackTrace();
-				return;
-			}
-			
-			System.out.println("TCPDataThread.run: server started at port: " + _portNumber);
 			
 			Socket s = null;
 			//set up socket to accept.  Code hangs on .accept() until a connection is established or
@@ -100,7 +100,25 @@ public class TCPDataThread implements DataThreadInterface {
 				
 				try {
 					s.close();
+					try {
+						_server.close();
+						_server = new ServerSocket(_portNumber);
+					} catch (IOException e) {
+						e.printStackTrace();
+						return;
+					}
+					
+					//attempt to set the timeout between successive checks of _timeToClose flag
+					try {
+						_server.setSoTimeout(TIMEOUT);
+					} catch (SocketException e) {
+						e.printStackTrace();
+						return;
+					}
+					
+					
 					System.out.println("TCPDataThread.run: closing connection.");
+					System.out.println("TCPDataThread.run: server started at port: " + _portNumber);
 				} catch (IOException e) {e.printStackTrace();}
 			} 
 			
