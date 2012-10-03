@@ -48,8 +48,10 @@ public class DataXferRawService extends NetLoadableService  {
 	 */
 	private void startup() {
 		for(int i=0; i < NPORTS; i++) {
-			uDPDataThreads[i].run();
-			tCPDataThreads[i].run();
+			Thread thread = new Thread(uDPDataThreads[i]);
+			thread.start();
+			thread = new Thread(tCPDataThreads[i]);
+			thread.start();
 		}
 	}
 	
