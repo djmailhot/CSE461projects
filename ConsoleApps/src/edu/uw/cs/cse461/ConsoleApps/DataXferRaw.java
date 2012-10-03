@@ -2,12 +2,15 @@ package edu.uw.cs.cse461.ConsoleApps;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import edu.uw.cs.cse461.ConsoleApps.DataXferInterface.DataXferRawInterface;
 import edu.uw.cs.cse461.Net.Base.DataXferRawService;
@@ -88,11 +91,11 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 				// UDP transfer
 				//-----------------------------------------------------
 
-				TransferRateInterval udpStats = udpDataXfer(server, port, socketTimeout, xferLength, nTrials);
-				
-				System.out.println("UDP: xfer rate = " + String.format("%9.0f", udpStats.mean() * 1000.0) + " bytes/sec.");
-				System.out.println("UDP: failure rate = " + String.format("%5.1f", udpStats.failureRate()) +
-						           " [" + udpStats.nAborted() + "/" + udpStats.nTrials() + "]");
+//				TransferRateInterval udpStats = udpDataXfer(server, port, socketTimeout, xferLength, nTrials);
+//				
+//				System.out.println("UDP: xfer rate = " + String.format("%9.0f", udpStats.mean() * 1000.0) + " bytes/sec.");
+//				System.out.println("UDP: failure rate = " + String.format("%5.1f", udpStats.failureRate()) +
+//						           " [" + udpStats.nAborted() + "/" + udpStats.nTrials() + "]");
 
 				//-----------------------------------------------------
 				// TCP transfer
@@ -144,7 +147,7 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 				break;
 			}
 			if (SendAndReceive.udpSendPacket(socket, packet, 0) == null) {
-				Log.w("PingRaw", "Failed to receive a response from the server");
+				Log.w("DataXferRaw", "Failed to receive a response from the server");
 			}
 		}
 		TransferRate.stop("udp", 1);
@@ -160,30 +163,49 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 	@Override
 	public TransferRateInterval tcpDataXfer(String hostIP, int tcpPort, int socketTimeout, int xferLength, int nTrials) {
 		TransferRate.start("tcp");
+		int attemptTimeout = 5;
+
 		for (int i = 0; i < nTrials; i++) {
-			Socket socket;
+			System.out.println(i);
+			Socket socket = null;
 			try {
 				socket = new Socket();
+				try {
+					socket.setSoTimeout(socketTimeout);
+				} catch (SocketException e) {
+					e.printStackTrace();
+					break;
+				}
 				socket.connect(new InetSocketAddress(hostIP, tcpPort));
+				InputStream is = socket.getInputStream();
+				byte[] buf = new byte[xferLength];
+				
+				int bytesRead = 0;
+				int totalAttempts = socketTimeout / attemptTimeout;
+				int numAttempts = 0;
+				while(bytesRead != -1 && bytesRead < xferLength && numAttempts < totalAttempts) {
+					Thread.sleep(attemptTimeout);
+					numAttempts++;
+					Log.d(TAG, ""+bytesRead);
+					bytesRead += is.read(buf, bytesRead, xferLength - bytesRead);
+				}
+				Log.d(TAG, "Reading Complete");
+				
 			} catch (IOException e) {
 				e.printStackTrace();
-				break;
-			}
-			try {
-				socket.setSoTimeout(socketTimeout);
-			} catch (SocketException e) {
+			} catch (InterruptedException e) {
+				Log.w(TAG, "Socket sleep timer interrupted");
 				e.printStackTrace();
-				break;
+			} finally {
+				try {
+					socket.close();
+					Log.d(TAG, "socket.close called");
+				} catch (IOException e) {
+					e.printStackTrace();
+					Log.w(TAG, "socket.close failed");
+				}
 			}
-			if (SendAndReceive.tcpSendMessage(socket, new byte[0]).length() != xferLength) {
-				Log.w("PingRaw", "Failed to receive a response of the proper length from the server");
-			}
-			try {
-				socket.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-				break;
-			}
+			
 		}		
 		
 		TransferRate.stop("tcp", 1);
