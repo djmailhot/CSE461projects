@@ -5,7 +5,7 @@ import java.util.Scanner;
 
 public class _SocketThreadTest{
 	public static void main(String args[]) throws InterruptedException{
-		DataThreadInterface t = new UDPDataThread(11111,1000000);
+		DataThreadInterface t = new UDPDataThread(11111,1000000,500);
 		
 		new Thread(t). start ( );
 		

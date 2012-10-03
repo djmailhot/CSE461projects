@@ -17,7 +17,7 @@ import java.lang.Math;
  */
 public class UDPDataThread implements DataThreadInterface {
 
-	private final static int TIMEOUT = 750;    //time in MS between checks to see if its time to shut down
+	private int _timeOut;    //time in MS between checks to see if its time to shut down
 	private int _portNumber;					  //port number to receive connections in
 	private DatagramSocket _dSocket; 		      //a server socket for the current available connection
 	private boolean _timeToClose = false;      //flag set when end() is called to signal the thread to shut down
@@ -30,9 +30,10 @@ public class UDPDataThread implements DataThreadInterface {
 	 * @param portNumber - a valid network port number in this domain
 	 * @param xferSize - the size in bytes of the response to be sent
 	 */
-	public UDPDataThread(int portNumber, int xferSize){
+	public UDPDataThread(int portNumber, int xferSize, int timeout){
 		_portNumber = portNumber;
 		_xferSize = xferSize;
+		_timeOut = timeout;
 		System.out.println("UDPDataThread constructor: server set up at port: " + portNumber);
 	}
 	
@@ -62,7 +63,7 @@ public class UDPDataThread implements DataThreadInterface {
 		
 		//attempt to set the timeout between successive checks of _timeToClose flag
 		try {
-			_dSocket.setSoTimeout(TIMEOUT);
+			_dSocket.setSoTimeout(_timeOut);
 		} catch (SocketException e) {
 			e.printStackTrace();
 			return;

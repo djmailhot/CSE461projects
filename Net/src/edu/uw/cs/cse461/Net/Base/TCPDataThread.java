@@ -16,7 +16,7 @@ import java.net.SocketTimeoutException;
  *
  */
 public class TCPDataThread implements DataThreadInterface {
-	private final static int TIMEOUT = 750; //time in MS between checks to see if its time to shut down
+	private int _timeOut = 750; //time in MS between checks to see if its time to shut down
 	private int _portNumber;					//port number to receive connections in
 	private ServerSocket _server;				//a server socket for the current available connection
 	private boolean _timeToClose = false;		//flag set when end() is called to signal the thread to shut down
@@ -27,9 +27,10 @@ public class TCPDataThread implements DataThreadInterface {
 	 * @param portNumber - a valid network port number in this domain
 	 * @param xferSize - the size in bytes of the response to be sent
 	 */
-	public TCPDataThread(int portNumber, int xferSize){
+	public TCPDataThread(int portNumber, int xferSize, int timeout){
 		_portNumber = portNumber;
 		_xferSize = xferSize;
+		_timeOut = timeout;
 		System.out.println("TCPDataThread constructor: server set up at port: " + portNumber);
 	}
 	
@@ -48,8 +49,6 @@ public class TCPDataThread implements DataThreadInterface {
 	 */
 	@Override
 	public void run() {
-		System.out.println("TCPDataThread.run: run started.");
-		
 		//attempt to set up socket on target port number
 		try {
 			_server = new ServerSocket(_portNumber);
@@ -60,7 +59,7 @@ public class TCPDataThread implements DataThreadInterface {
 		
 		//attempt to set the timeout between successive checks of _timeToClose flag
 		try {
-			_server.setSoTimeout(TIMEOUT);
+			_server.setSoTimeout(_timeOut);
 		} catch (SocketException e) {
 			e.printStackTrace();
 			return;
@@ -89,12 +88,12 @@ public class TCPDataThread implements DataThreadInterface {
 			//  and we attempt to send the response
 			if(!error && !timedOut){
 				try {
-					System.out.println("TCPDataThread.run: transmitting message of length " + _xferSize + ".");
+					System.out.println("TCPDataThread.run: transmitting message of length " + _xferSize + " to " + s.getInetAddress());
 					OutputStream os = s.getOutputStream();
 					byte message[] = new byte[_xferSize];
 					os.write(message);
 					System.out.println("TCPDataThread.run: message transmitted.");
-				} catch (IOException e1) {
+				} catch (Exception e1) {
 					System.err.println("TCPDataThread.run: trouble sending response");
 					e1.printStackTrace();
 				}
@@ -111,7 +110,7 @@ public class TCPDataThread implements DataThreadInterface {
 					
 					//attempt to set the timeout between successive checks of _timeToClose flag
 					try {
-						_server.setSoTimeout(TIMEOUT);
+						_server.setSoTimeout(_timeOut);
 					} catch (SocketException e) {
 						e.printStackTrace();
 						return;

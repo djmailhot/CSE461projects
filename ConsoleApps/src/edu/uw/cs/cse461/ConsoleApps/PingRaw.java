@@ -8,6 +8,7 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 
 import edu.uw.cs.cse461.ConsoleApps.PingInterface.PingRawInterface;
 import edu.uw.cs.cse461.Net.Base.NetBase;
@@ -112,28 +113,23 @@ public class PingRaw extends NetLoadableConsoleApp implements PingRawInterface {
 			DatagramSocket socket;	
 			try {
 				socket = new DatagramSocket();
-			} catch (IOException e) {
-				e.printStackTrace();
-				break;
-			}
-			try {
 				socket.setSoTimeout(socketTimeout);
-			} catch (SocketException e) {
-				e.printStackTrace();
-				break;
-			}
-			InetSocketAddress address = new InetSocketAddress(hostIP, udpPort);
-			byte[] buf = new byte[3];
-			DatagramPacket packet;
-			try {
+				
+				InetSocketAddress address = new InetSocketAddress(hostIP, udpPort);
+				byte[] buf = new byte[3];
+				DatagramPacket packet;
 				packet = new DatagramPacket(buf, 0, address);
+			
+				if (SendAndReceive.udpSendPacket(socket, packet, 0) == null) {
+					Log.w("PingRaw", "Failed to receive a response from the server");
+				}
 			} catch (SocketException e) {
-				e.printStackTrace();
-				break;
+				Log.i(TAG, "Socket failed to complete request");
+				e.printStackTrace();				
+			} catch (IOException e) {
+				e.printStackTrace();				
 			}
-			if (SendAndReceive.udpSendPacket(socket, packet, 0) == null) {
-				Log.w("PingRaw", "Failed to receive a response from the server");
-			}
+			
 		}		
 		ElapsedTime.stop("PingRaw_UDPTotalDelay");
 		return ElapsedTime.get("PingRaw_UDPTotalDelay");

@@ -29,6 +29,9 @@ public class DataXferRawService extends NetLoadableService  {
 
 		ConfigManager config = NetBase.theNetBase().config();
 		mBasePort = config.getAsInt("dataxferraw.baseport", 0, TAG);
+		
+		int timeout = config.getAsInt("dataxferraw.sockettimeout");
+		
 		if ( mBasePort == 0 ) throw new RuntimeException("dataxferraw service can't run -- no dataxferraw.baseport entry in config file");
 
 		// Init socket-listening threads
@@ -36,8 +39,8 @@ public class DataXferRawService extends NetLoadableService  {
 		tCPDataThreads = new DataThreadInterface[NPORTS];
 		for(int i=0; i < NPORTS; i++) {
 			int portNum = mBasePort + i;
-			uDPDataThreads[i] = new UDPDataThread(portNum, XFERSIZE[i]);
-			tCPDataThreads[i] = new TCPDataThread(portNum, XFERSIZE[i]);
+			uDPDataThreads[i] = new UDPDataThread(portNum, XFERSIZE[i],timeout);
+			tCPDataThreads[i] = new TCPDataThread(portNum, XFERSIZE[i],timeout);
 		}
 		
 		startup();
