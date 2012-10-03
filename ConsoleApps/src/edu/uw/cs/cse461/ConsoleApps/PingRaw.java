@@ -114,21 +114,22 @@ public class PingRaw extends NetLoadableConsoleApp implements PingRawInterface {
 			try {
 				socket = new DatagramSocket();
 				socket.setSoTimeout(socketTimeout);
+				// Creates a UDP socket and gives it the provided timeout.
 				
 				InetSocketAddress address = new InetSocketAddress(hostIP, udpPort);
 				byte[] buf = new byte[3];
-				DatagramPacket packet;
-				packet = new DatagramPacket(buf, 0, address);
+				DatagramPacket packet = new DatagramPacket(buf, 3, address);
+				// Creates a datagram packet with the empty buffer, length of the buffer, and the address
+				// to send the information.
 			
 				if (SendAndReceive.udpSendPacket(socket, packet, 0) == null) {
 					Log.w("PingRaw", "Failed to receive a response from the server");
 				}
+				//  If the message failed to send, then inform the user of this and continue.
 			} catch (SocketException e) {
 				Log.i(TAG, "Socket failed to complete request");
 				e.printStackTrace();				
-			} catch (IOException e) {
-				e.printStackTrace();				
-			}
+			} 
 			
 		}		
 		ElapsedTime.stop("PingRaw_UDPTotalDelay");
