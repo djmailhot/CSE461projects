@@ -8,7 +8,6 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
-import java.net.SocketTimeoutException;
 
 import edu.uw.cs.cse461.ConsoleApps.PingInterface.PingRawInterface;
 import edu.uw.cs.cse461.Net.Base.NetBase;
@@ -151,21 +150,34 @@ public class PingRaw extends NetLoadableConsoleApp implements PingRawInterface {
 				e.printStackTrace();
 				break;
 			}
+			// Attempts to create a TCP socket connecting to the given address
+			
 			try {
 				socket.setSoTimeout(socketTimeout);
 			} catch (SocketException e) {
 				e.printStackTrace();
+				try {
+					socket.close();
+				} catch (IOException er) {
+					er.printStackTrace();
+					break;
+				}
 				break;
 			}
+			// Attempts to set the socket's timeout to the provided value.
+			
 			if (SendAndReceive.tcpSendMessage(socket, new byte[0]) == null) {
 				Log.w("PingRaw", "Failed to receive a response from the server");
 			}
+			// Attempts to send and receive a ping from the server.
+			
 			try {
 				socket.close();
 			} catch (IOException e) {
 				e.printStackTrace();
 				break;
 			}
+			// Attempts to close the socket
 		}		
 		ElapsedTime.stop("PingRaw_TCPTotal");
 		return ElapsedTime.get("PingRaw_TCPTotal");
