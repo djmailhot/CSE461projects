@@ -2,12 +2,15 @@ package edu.uw.cs.cse461.ConsoleApps;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import edu.uw.cs.cse461.ConsoleApps.DataXferInterface.DataXferRawInterface;
 import edu.uw.cs.cse461.Net.Base.DataXferRawService;
@@ -120,18 +123,25 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 	@Override
 	public TransferRateInterval udpDataXfer(String hostIP, int udpPort, int socketTimeout, int xferLength, int nTrials) {
 		TransferRate.start("udp");
+		int totalTransferred = 0;
 		for (int i = 0; i < nTrials; i++) {
 			DatagramSocket socket;	
 			try {
 				socket = new DatagramSocket();
 			} catch (IOException e) {
 				e.printStackTrace();
+				TransferRate.abort("udp", totalTransferred);
+				if (i != nTrials - 1) 
+					TransferRate.start("udp");
 				break;
 			}
 			try {
 				socket.setSoTimeout(socketTimeout);
 			} catch (SocketException e) {
 				e.printStackTrace();
+				TransferRate.abort("udp", totalTransferred);
+				if (i != nTrials - 1) 
+					TransferRate.start("udp");
 				break;
 			}
 			InetSocketAddress address = new InetSocketAddress(hostIP, udpPort);
@@ -141,13 +151,24 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 				packet = new DatagramPacket(buf, 0, address);
 			} catch (SocketException e) {
 				e.printStackTrace();
+				TransferRate.abort("udp", totalTransferred);
+				if (i != nTrials - 1) 
+					TransferRate.start("udp");
 				break;
 			}
-			if (SendAndReceive.udpSendPacket(socket, packet, 0) == null) {
-				Log.w("PingRaw", "Failed to receive a response from the server");
+			byte[] ans = SendAndReceive.udpSendPacket(socket, packet, xferLength);
+			if (ans == null) {
+				Log.w("DataXferRaw", "Failed to receive a response from the server");
+				TransferRate.abort("udp", totalTransferred);
+				if (i != nTrials - 1) 
+					TransferRate.start("udp");
+			} else {
+				totalTransferred += ans.length;
+				TransferRate.stop("udp", totalTransferred);
+				if (i != nTrials - 1) 
+					TransferRate.start("udp");
 			}
 		}
-		TransferRate.stop("udp", 1);
 		return TransferRate.get("udp");
 	}
 	
@@ -160,33 +181,66 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 	@Override
 	public TransferRateInterval tcpDataXfer(String hostIP, int tcpPort, int socketTimeout, int xferLength, int nTrials) {
 		TransferRate.start("tcp");
+		int attemptTimeout = 5;
+
+		int dataTransferred = 0;
 		for (int i = 0; i < nTrials; i++) {
-			Socket socket;
+			Socket socket = null;
 			try {
 				socket = new Socket();
+				try {
+					socket.setSoTimeout(socketTimeout);
+				} catch (SocketException e) {
+					e.printStackTrace();
+					TransferRate.abort("tcp", dataTransferred);
+					if (i != nTrials - 1) {
+						TransferRate.start("tcp");
+					}
+					break;
+				}
 				socket.connect(new InetSocketAddress(hostIP, tcpPort));
+				InputStream is = socket.getInputStream();
+				byte[] buf = new byte[xferLength];
+				
+				int bytesRead = 0;
+				int totalAttempts = socketTimeout / attemptTimeout;
+				int numAttempts = 0;
+				while(bytesRead != -1 && bytesRead < xferLength && numAttempts < totalAttempts) {
+					Thread.sleep(attemptTimeout);
+					numAttempts++;
+					bytesRead += is.read(buf, bytesRead, xferLength - bytesRead);
+				}
+				if (bytesRead != -1) {
+					dataTransferred += bytesRead;
+				}
+				TransferRate.stop("tcp", dataTransferred);
+				if (i != nTrials - 1) {
+					TransferRate.start("tcp");
+				}
 			} catch (IOException e) {
 				e.printStackTrace();
-				break;
-			}
-			try {
-				socket.setSoTimeout(socketTimeout);
-			} catch (SocketException e) {
+				TransferRate.abort("tcp", dataTransferred);
+				if (i != nTrials - 1) {
+					TransferRate.start("tcp");
+				}
+			} catch (InterruptedException e) {
+				Log.w(TAG, "Socket sleep timer interrupted");
+				TransferRate.abort("tcp", dataTransferred);
+				if (i != nTrials - 1) {
+					TransferRate.start("tcp");
+				}
 				e.printStackTrace();
-				break;
+			} finally {
+				try {
+					socket.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+					Log.w(TAG, "socket.close failed");
+				}
 			}
-			if (SendAndReceive.tcpSendMessage(socket, new byte[0]).length() != xferLength) {
-				Log.w("PingRaw", "Failed to receive a response of the proper length from the server");
-			}
-			try {
-				socket.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-				break;
-			}
+			
 		}		
 		
-		TransferRate.stop("tcp", 1);
 		return TransferRate.get("tcp");
 	}
 	

@@ -6,23 +6,42 @@ import java.io.OutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 
 public class SendAndReceive {
-	public static DatagramPacket udpSendPacket(DatagramSocket socket, DatagramPacket packet, int len) {
+	public static byte[] udpSendPacket(DatagramSocket socket, DatagramPacket packet, int len) {
 		try {
 			socket.send(packet);
 		} catch (IOException e) {
 			e.printStackTrace();
 			return null;
 		}
-		DatagramPacket response = new DatagramPacket(new byte[len], len);
-		try {
-			socket.receive(response);
-		} catch (IOException e) {
-			e.printStackTrace();
-			return null;
+		if (len >= 1000) {
+			byte[] result = new byte[len];
+			DatagramPacket response = new DatagramPacket(new byte[1000], 1000);
+			int received = 0;
+			try {
+				while (received < len) {
+					socket.receive(response);
+					received += response.getLength();
+				}
+			} catch (SocketTimeoutException e) {
+				return result;
+			} catch (IOException e) {
+				e.printStackTrace();
+				return null;
+			}
+			return result;
+		} else {
+			DatagramPacket response = new DatagramPacket(new byte[len], len);
+			try {
+				socket.receive(response);
+			} catch (IOException e) {
+				e.printStackTrace();
+				return null;
+			}
+			return response.getData();
 		}
-		return response;
 	}
 
 	public static String tcpSendMessage(Socket socket, byte[] buf) {
