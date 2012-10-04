@@ -9,8 +9,6 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
-import java.util.Timer;
-import java.util.TimerTask;
 
 import edu.uw.cs.cse461.ConsoleApps.DataXferInterface.DataXferRawInterface;
 import edu.uw.cs.cse461.Net.Base.DataXferRawService;
@@ -135,6 +133,8 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 					TransferRate.start("udp");
 				break;
 			}
+			// Attempts to create a socket.  If it fails, report the failure by aborting and starting tracking anew.
+			
 			try {
 				socket.setSoTimeout(socketTimeout);
 			} catch (SocketException e) {
@@ -144,6 +144,8 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 					TransferRate.start("udp");
 				break;
 			}
+			// Attempts to set the timeout.  If this fails, reports the failure by aborting and starting tracking anew.
+			
 			InetSocketAddress address = new InetSocketAddress(hostIP, udpPort);
 			byte[] buf = new byte[0];
 			DatagramPacket packet;
@@ -156,6 +158,8 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 					TransferRate.start("udp");
 				break;
 			}
+			// Attempts to create a data packet to send.  Same procedure for failure
+			
 			byte[] ans = SendAndReceive.udpSendPacket(socket, packet, xferLength);
 			if (ans == null) {
 				Log.w("DataXferRaw", "Failed to receive a response from the server");
@@ -168,6 +172,8 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 				if (i != nTrials - 1) 
 					TransferRate.start("udp");
 			}
+			// Sends a packet informing the server it is ready to receive, and checks if any packets are received.
+			// If not, logs the failure and continues the trials.
 		}
 		return TransferRate.get("udp");
 	}
@@ -198,10 +204,11 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 					}
 					break;
 				}
+				//  Attempts to create a TCP socket.  If this fails, aborts the timer and starts it again
 				socket.connect(new InetSocketAddress(hostIP, tcpPort));
 				InputStream is = socket.getInputStream();
 				byte[] buf = new byte[xferLength];
-				
+				// Attempts to connect to the IP address.
 				int bytesRead = 0;
 				int totalAttempts = socketTimeout / attemptTimeout;
 				int numAttempts = 0;
