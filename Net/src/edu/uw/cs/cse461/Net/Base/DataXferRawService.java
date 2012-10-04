@@ -34,7 +34,7 @@ public class DataXferRawService extends NetLoadableService  {
 		
 		if ( mBasePort == 0 ) throw new RuntimeException("dataxferraw service can't run -- no dataxferraw.baseport entry in config file");
 
-		// Init socket-listening threads
+		// Init data thread sockets
 		uDPDataThreads = new DataThreadInterface[NPORTS];
 		tCPDataThreads = new DataThreadInterface[NPORTS];
 		for(int i=0; i < NPORTS; i++) {
@@ -50,6 +50,7 @@ public class DataXferRawService extends NetLoadableService  {
 	 * Startup the service by opening sockets to listen on the intended ports.
 	 */
 	private void startup() {
+		// Start each data thread socket on it's own thread
 		for(int i=0; i < NPORTS; i++) {
 			Thread thread = new Thread(uDPDataThreads[i]);
 			thread.start();
@@ -65,6 +66,7 @@ public class DataXferRawService extends NetLoadableService  {
 	@Override
 	public void shutdown() {
 		Log.d(TAG, "Shutting down");
+		// End each data thread socket before shutdown
 		for(int i=0; i < NPORTS; i++) {
 			uDPDataThreads[i].end();
 			tCPDataThreads[i].end();

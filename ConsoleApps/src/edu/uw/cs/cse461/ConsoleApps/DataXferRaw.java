@@ -120,57 +120,35 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 	 */
 	@Override
 	public TransferRateInterval udpDataXfer(String hostIP, int udpPort, int socketTimeout, int xferLength, int nTrials) {
-		TransferRate.start("udp");
-		int totalTransferred = 0;
 		for (int i = 0; i < nTrials; i++) {
+			TransferRate.start("udp");
+			int totalTransferred = 0;
+
 			DatagramSocket socket;	
 			try {
+				// Attempts to create a socket.  If it fails, report the failure by aborting and starting tracking anew.
 				socket = new DatagramSocket();
-			} catch (IOException e) {
-				e.printStackTrace();
-				TransferRate.abort("udp", totalTransferred);
-				if (i != nTrials - 1) 
-					TransferRate.start("udp");
-				break;
-			}
-			// Attempts to create a socket.  If it fails, report the failure by aborting and starting tracking anew.
-			
-			try {
+				// Attempts to set the timeout.  If this fails, reports the failure by aborting and starting tracking anew.
 				socket.setSoTimeout(socketTimeout);
-			} catch (SocketException e) {
-				e.printStackTrace();
-				TransferRate.abort("udp", totalTransferred);
-				if (i != nTrials - 1) 
-					TransferRate.start("udp");
-				break;
-			}
-			// Attempts to set the timeout.  If this fails, reports the failure by aborting and starting tracking anew.
-			
-			InetSocketAddress address = new InetSocketAddress(hostIP, udpPort);
-			byte[] buf = new byte[0];
-			DatagramPacket packet;
-			try {
+
+				InetSocketAddress address = new InetSocketAddress(hostIP, udpPort);
+				byte[] buf = new byte[0];
+				DatagramPacket packet;
+				// Attempts to create a data packet to send.  Same procedure for failure
 				packet = new DatagramPacket(buf, 0, address);
+
+				int ans = SendAndReceive.udpSendPacket(socket, packet, xferLength);
+				if (ans == -1) {
+					Log.i("TAG", "Failed to receive a response from the server");
+					TransferRate.abort("udp", totalTransferred);
+				} else {
+					totalTransferred += ans;
+					TransferRate.stop("udp", totalTransferred);
+				}
 			} catch (SocketException e) {
 				e.printStackTrace();
+				Log.w("TAG", "Preparing the UDP socket failed");
 				TransferRate.abort("udp", totalTransferred);
-				if (i != nTrials - 1) 
-					TransferRate.start("udp");
-				break;
-			}
-			// Attempts to create a data packet to send.  Same procedure for failure
-			
-			int ans = SendAndReceive.udpSendPacket(socket, packet, xferLength);
-			if (ans == -1) {
-				Log.w("DataXferRaw", "Failed to receive a response from the server");
-				TransferRate.abort("udp", totalTransferred);
-				if (i != nTrials - 1) 
-					TransferRate.start("udp");
-			} else {
-				totalTransferred += ans;
-				TransferRate.stop("udp", totalTransferred);
-				if (i != nTrials - 1) 
-					TransferRate.start("udp");
 			}
 			// Sends a packet informing the server it is ready to receive, and checks if any packets are received.
 			// If not, logs the failure and continues the trials.
@@ -179,67 +157,60 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 	}
 	
 	/**
-	 * Performs nTrials trials via UDP of a data xfer to host hostIP on port udpPort.  Expects to get xferLength
+	 * Performs nTrials trials via TCP of a data xfer to host hostIP on port tcpPort.  Expects to get xferLength
 	 * bytes in total from that host/port.  Is willing to wait up to socketTimeout msec. for new data to arrive.
 	 * @return A TransferRateInterval object that measured the total bytes of data received over all trials and
 	 * the total time taken.  The measured time should include socket creation time.
 	 */
 	@Override
 	public TransferRateInterval tcpDataXfer(String hostIP, int tcpPort, int socketTimeout, int xferLength, int nTrials) {
-		TransferRate.start("tcp");
-		int attemptTimeout = 5;
+		int readInterval = 5;  // time in ms between each read operation.  Must be fast enough to prevent the received-packet buffer from overflowing.
 
-		int dataTransferred = 0;
 		for (int i = 0; i < nTrials; i++) {
+			TransferRate.start("tcp");
+			int dataTransferred = 0;
 			Socket socket = null;
 			try {
 				socket = new Socket();
-				try {
-					socket.setSoTimeout(socketTimeout);
-				} catch (SocketException e) {
-					e.printStackTrace();
-					TransferRate.abort("tcp", dataTransferred);
-					if (i != nTrials - 1) {
-						TransferRate.start("tcp");
-					}
-					break;
-				}
+				socket.setSoTimeout(socketTimeout);
 				//  Attempts to create a TCP socket.  If this fails, aborts the timer and starts it again
 				socket.connect(new InetSocketAddress(hostIP, tcpPort));
 				InputStream is = socket.getInputStream();
 				byte[] buf = new byte[xferLength];
+				
 				// Attempts to connect to the IP address.
-				int bytesRead = 0;
-				int totalAttempts = socketTimeout / attemptTimeout;
-				int numAttempts = 0;
-				while(bytesRead != -1 && bytesRead < xferLength && numAttempts < totalAttempts) {
-					Thread.sleep(attemptTimeout);
-					numAttempts++;
-					bytesRead += is.read(buf, bytesRead, xferLength - bytesRead);
-				}
-				if (bytesRead != -1) {
-					dataTransferred += bytesRead;
+				int totalBytesRead = 0;
+				int readTimeLeft = socketTimeout; // Keep track of the total time reading
+				while(totalBytesRead < xferLength && readTimeLeft > 0) {
+					Thread.sleep(readInterval);
+					readTimeLeft -= readInterval;
+
+					// read from the stream
+					int bytesRead = is.read(buf, totalBytesRead, xferLength - totalBytesRead);
+
+					// if the stream wasn't finished, then update byte counts
+					if (bytesRead != -1) {
+						dataTransferred += bytesRead;
+						totalBytesRead += bytesRead;
+					} else {
+						break;
+					}
 				}
 				TransferRate.stop("tcp", dataTransferred);
-				if (i != nTrials - 1) {
-					TransferRate.start("tcp");
-				}
+			} catch (SocketException e) {
+				e.printStackTrace();
+				TransferRate.abort("tcp", dataTransferred);
 			} catch (IOException e) {
 				e.printStackTrace();
 				TransferRate.abort("tcp", dataTransferred);
-				if (i != nTrials - 1) {
-					TransferRate.start("tcp");
-				}
 			} catch (InterruptedException e) {
-				Log.w(TAG, "Socket sleep timer interrupted");
-				TransferRate.abort("tcp", dataTransferred);
-				if (i != nTrials - 1) {
-					TransferRate.start("tcp");
-				}
+				Log.w(TAG, "Socket read sleep timer interrupted");
 				e.printStackTrace();
+				TransferRate.abort("tcp", dataTransferred);
 			} finally {
 				try {
 					socket.close();
+					Log.d(TAG, "socket.close succeeded");
 				} catch (IOException e) {
 					e.printStackTrace();
 					Log.w(TAG, "socket.close failed");

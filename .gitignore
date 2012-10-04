@@ -1,3 +1,4 @@
 *.class
 */bin/*
 .metadata/
+ConfigFiles/default.config.ini
