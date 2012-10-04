@@ -57,6 +57,12 @@ public class SendAndReceive {
 		}
 	}
 
+	/**
+	 * 
+	 * @param socket - the socket through which the message should be sent
+	 * @param buf - a buffer containing the message to send.
+	 * @return the response to the message from the server.
+	 */
 	public static String tcpSendMessage(Socket socket, byte[] buf) {
 		try {
 			InputStream result = socket.getInputStream();
