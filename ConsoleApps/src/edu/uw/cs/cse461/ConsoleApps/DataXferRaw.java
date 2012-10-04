@@ -137,13 +137,15 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 				// Attempts to create a data packet to send.  Same procedure for failure
 				packet = new DatagramPacket(buf, 0, address);
 
-				int ans = SendAndReceive.udpSendPacket(socket, packet, xferLength);
-				if (ans == -1) {
-					Log.i("TAG", "Failed to receive a response from the server");
-					TransferRate.abort("udp", totalTransferred);
+				totalTransferred = SendAndReceive.udpSendPacket(socket, packet, xferLength);
+				if (totalTransferred == xferLength) {
+						// successful trial!
+						TransferRate.stop("udp", totalTransferred);
+				} else if (totalTransferred == -1) {
+					Log.i("TAG", "Failed to send to the server");
+					TransferRate.abort("udp", 0);
 				} else {
-					totalTransferred += ans;
-					TransferRate.stop("udp", totalTransferred);
+					TransferRate.abort("udp", totalTransferred);
 				}
 			} catch (SocketException e) {
 				e.printStackTrace();
@@ -182,7 +184,12 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 				int totalBytesRead = 0;
 				int readTimeLeft = socketTimeout; // Keep track of the total time reading
 				while(totalBytesRead < xferLength && readTimeLeft > 0) {
-					Thread.sleep(readInterval);
+					try {
+						Thread.sleep(readInterval);
+					} catch (InterruptedException e) {
+						Log.i(TAG, "Socket read sleep timer interrupted");
+						e.printStackTrace();
+					}
 					readTimeLeft -= readInterval;
 
 					// read from the stream
@@ -196,15 +203,13 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 						break;
 					}
 				}
-				TransferRate.stop("tcp", dataTransferred);
-			} catch (SocketException e) {
-				e.printStackTrace();
-				TransferRate.abort("tcp", dataTransferred);
+				if (dataTransferred == xferLength) {
+					// trial successful!
+					TransferRate.stop("tcp", dataTransferred);
+				} else {
+					TransferRate.abort("tcp", dataTransferred);
+				}
 			} catch (IOException e) {
-				e.printStackTrace();
-				TransferRate.abort("tcp", dataTransferred);
-			} catch (InterruptedException e) {
-				Log.w(TAG, "Socket read sleep timer interrupted");
 				e.printStackTrace();
 				TransferRate.abort("tcp", dataTransferred);
 			} finally {
@@ -213,7 +218,7 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 					Log.d(TAG, "socket.close succeeded");
 				} catch (IOException e) {
 					e.printStackTrace();
-					Log.w(TAG, "socket.close failed");
+					Log.i(TAG, "socket.close failed");
 				}
 			}
 			
