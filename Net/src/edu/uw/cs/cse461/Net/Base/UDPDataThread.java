@@ -100,6 +100,7 @@ public class UDPDataThread implements DataThreadInterface {
 						
 						DatagramPacket message = new DatagramPacket(buffer, bufferLen);
 						message.setAddress(p.getAddress());
+						message.setPort(p.getPort());
 						_dSocket.send(message);
 						
 						bytesLeft -= bufferLen;
