@@ -121,7 +121,7 @@ public class PingRaw extends NetLoadableConsoleApp implements PingRawInterface {
 				// Creates a datagram packet with the empty buffer, length of the buffer, and the address
 				// to send the information.
 			
-				if (SendAndReceive.udpSendPacket(socket, packet, 0) == null) {
+				if (SendAndReceive.udpSendPacket(socket, packet, 0) == -1) {
 					Log.w("PingRaw", "Failed to receive a response from the server");
 				}
 				//  If the message failed to send, then inform the user of this and continue.

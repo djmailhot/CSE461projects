@@ -160,14 +160,14 @@ public class DataXferRaw extends NetLoadableConsoleApp implements DataXferRawInt
 			}
 			// Attempts to create a data packet to send.  Same procedure for failure
 			
-			byte[] ans = SendAndReceive.udpSendPacket(socket, packet, xferLength);
-			if (ans == null) {
+			int ans = SendAndReceive.udpSendPacket(socket, packet, xferLength);
+			if (ans == -1) {
 				Log.w("DataXferRaw", "Failed to receive a response from the server");
 				TransferRate.abort("udp", totalTransferred);
 				if (i != nTrials - 1) 
 					TransferRate.start("udp");
 			} else {
-				totalTransferred += ans.length;
+				totalTransferred += ans;
 				TransferRate.stop("udp", totalTransferred);
 				if (i != nTrials - 1) 
 					TransferRate.start("udp");
