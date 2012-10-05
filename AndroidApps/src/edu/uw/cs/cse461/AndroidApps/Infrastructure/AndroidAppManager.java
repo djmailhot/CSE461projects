@@ -6,6 +6,7 @@ import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import edu.uw.cs.cse461.AndroidApps.R;
@@ -24,6 +25,7 @@ public class AndroidAppManager extends NetLoadableAndroidApp {
 		AppLaunchButton(Context ctx, String appclassname) {
 			super(ctx);
 			mClassname = appclassname;
+			setTextSize(16.0F);
             setText(appclassname);
             setOnClickListener(new View.OnClickListener() {
             	public void onClick(View v) {
@@ -50,13 +52,23 @@ public class AndroidAppManager extends NetLoadableAndroidApp {
         	
         }
         
-        LinearLayout layout = (LinearLayout)this.findViewById(R.id.appmanagerlayout);
+//        LinearLayout layout = (LinearLayout)this.findViewById(R.id.appmanagerlayout);
+//        //LinearLayout layout = (LinearLayout)this.findViewById(R.id.AndroidAppManagerLayout);
+//        for (String appclassname : NetBase.theNetBase().loadedAppNames()) {
+//        	Button btn = new AppLaunchButton(this, appclassname); 
+//        	layout.addView(btn); 
+//        }
+
+//        ScrollView scrollView = (ScrollView)this.findViewById(R.id.appmanager_scrollview);
+//        LinearLayout scrollLayout = new LinearLayout(getApplicationContext());
+//        scrollView.addView(scrollLayout);
+        LinearLayout scrollLayout = (LinearLayout)this.findViewById(R.id.appmanager_scrollviewlayout);
         //LinearLayout layout = (LinearLayout)this.findViewById(R.id.AndroidAppManagerLayout);
         for (String appclassname : NetBase.theNetBase().loadedAppNames()) {
             Button btn = new AppLaunchButton(this, appclassname); 
-            layout.addView(btn); 
+            scrollLayout.addView(btn); 
         }
-    }
+}
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {

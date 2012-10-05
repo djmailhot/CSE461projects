@@ -15,27 +15,20 @@
         android:text="TextView"
         android:textSize="12sp" />
 
-    <LinearLayout
-        android:id="@+id/appmanagerlayout"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <ScrollView
+        android:id="@+id/appmanager_scrollview"
+        android:layout_below="@+id/appmanager_myiptext"
         android:layout_alignParentLeft="true"
         android:layout_alignParentRight="true"
-        android:layout_below="@+id/appmanager_prompt" >
-
-    </LinearLayout>
-
-    <EditText
-        android:id="@+id/appmanager_prompt"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentLeft="true"
-        android:layout_below="@+id/appmanager_myiptext"
-        android:layout_marginTop="49dp"
-        android:layout_weight="28.89"
-        android:ems="10"
-        android:inputType="textMultiLine"
-        android:text="@string/androidappmanagerPrompt"
-        android:textSize="12sp" />
+        android:layout_height="wrap_content" >
+        
+        <LinearLayout
+	        android:id="@+id/appmanager_scrollviewlayout"
+	        android:orientation="vertical"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" >
+        </LinearLayout>
+    </ScrollView>
 
 </RelativeLayout>

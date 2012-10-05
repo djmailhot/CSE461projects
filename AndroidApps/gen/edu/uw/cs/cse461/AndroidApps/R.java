@@ -22,13 +22,13 @@ public final class R {
     public static final class id {
         public static final int AndroidAppManagerLayout=0x7f080000;
         public static final int appmanager_myiptext=0x7f080001;
-        public static final int appmanager_prompt=0x7f080003;
-        public static final int appmanagerlayout=0x7f080002;
+        public static final int appmanager_scrollview=0x7f080002;
+        public static final int appmanager_scrollviewlayout=0x7f080003;
         public static final int button1=0x7f080005;
-        public static final int button2=0x7f080019;
-        public static final int chosenpicture=0x7f08001b;
+        public static final int button2=0x7f08001e;
+        public static final int chosenpicture=0x7f080020;
         public static final int configspinner=0x7f080004;
-        public static final int contactbutton=0x7f080017;
+        public static final int contactbutton=0x7f08001c;
         public static final int echoraw_gobutton=0x7f08000d;
         public static final int echoraw_iptext=0x7f08000a;
         public static final int echoraw_msgtext=0x7f08000c;
@@ -36,17 +36,22 @@ public final class R {
         public static final int echoraw_outputtext=0x7f08000e;
         public static final int echoraw_porttext=0x7f08000b;
         public static final int echoraw_relativelayout=0x7f080008;
-        public static final int fixdbbutton=0x7f080018;
-        public static final int friendbutton=0x7f080015;
+        public static final int fixdbbutton=0x7f08001d;
+        public static final int friendbutton=0x7f08001a;
         public static final int gobutton=0x7f080011;
         public static final int iptext=0x7f08000f;
-        public static final int memberspinner=0x7f080014;
-        public static final int menu_settings=0x7f08001c;
+        public static final int memberspinner=0x7f080019;
+        public static final int menu_settings=0x7f080021;
         public static final int myiptext=0x7f080013;
-        public static final int mypicture=0x7f08001a;
+        public static final int mypicture=0x7f08001f;
         public static final int outputtext=0x7f080012;
+        public static final int pingtcpmessagehandler_gobutton=0x7f080017;
+        public static final int pingtcpmessagehandler_iptext=0x7f080016;
+        public static final int pingtcpmessagehandler_myiptext=0x7f080015;
+        public static final int pingtcpmessagehandler_outputtext=0x7f080018;
+        public static final int pingtcpmessagehandler_relativelayout=0x7f080014;
         public static final int porttext=0x7f080010;
-        public static final int unfriendbutton=0x7f080016;
+        public static final int unfriendbutton=0x7f08001b;
         public static final int version_myiptext=0x7f080007;
         public static final int version_versiontext=0x7f080006;
     }
@@ -56,8 +61,9 @@ public final class R {
         public static final int activity_version=0x7f030002;
         public static final int echoraw_layout=0x7f030003;
         public static final int pingrpc_layout=0x7f030004;
-        public static final int snet_contact=0x7f030005;
-        public static final int snet_main=0x7f030006;
+        public static final int pingtcpmessagehandler_layout=0x7f030005;
+        public static final int snet_contact=0x7f030006;
+        public static final int snet_main=0x7f030007;
     }
     public static final class menu {
         public static final int activity_android_app_manager=0x7f070000;
