@@ -13,6 +13,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import edu.uw.cs.cse461.Net.Base.NetBase;
+import edu.uw.cs.cse461.util.ConfigManager;
 import edu.uw.cs.cse461.util.Log;
 
 
@@ -33,7 +35,7 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 	private static final String TAG="TCPMessageHandler";
 	private static final int MESSAGE_HEADER_SIZE = 4;
 
-	private final Socket socket;
+	private Socket socket;
 	private final int readMessageTimeout;
 	private final int readMessageInterval;
 
@@ -122,7 +124,7 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 	}
 	
 	public void sendMesssage(JSONArray jsArray) throws IOException {
-		sendMesssage(jsArray.toString());
+		sendMessage(jsArray.toString());
 	}
 	
 	public void sendMessage(JSONObject jsObject) throws IOException {
