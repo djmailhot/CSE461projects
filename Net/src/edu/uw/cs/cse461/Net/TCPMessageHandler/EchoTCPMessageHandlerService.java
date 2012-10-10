@@ -40,7 +40,7 @@ public class EchoTCPMessageHandlerService extends NetLoadableService  {
 								tcpMessageHandlerSocket.sendMessage(msg);
 							}
 						} catch (Exception e) {
-							Log.i(TAG, "Exception while handling connection: " + e.getMessage());
+							Log.i(TAG, "Exception while handling connection: " + e.toString() + "\n");
 						} finally {
 							if ( tcpMessageHandlerSocket != null ) tcpMessageHandlerSocket.discard();
 							if ( sock != null ) try { sock.close(); } catch (Exception e) {}

@@ -8,6 +8,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -39,7 +40,7 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 	private final int readMessageTimeout;
 	private final int readMessageInterval;
 
-	private int maxReadLength;
+	private int maxReadLength = 100;
 	
 	//--------------------------------------------------------------------------------------
 	// helper routines
@@ -71,7 +72,7 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 		ByteBuffer b = ByteBuffer.allocate(4);
 		b.order(ByteOrder.LITTLE_ENDIAN);
 		b.put(buf);
-		return b.getInt();
+		return b.getInt(0);
 	}
 
 	/**

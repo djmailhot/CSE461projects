@@ -20,5 +20,10 @@
     <string name="snet_unfriend">Unfriend</string>
     <string name="snet_fixdb">Fix DB</string>
     <string name="echo">Echo</string>
+    <string name="title_activity_pingTCPMsgHndlr">PingTCPMessageHandler</string>
+    <string name="ping">Ping</string>
+    <string name="hostIP">Host IP</string>
+    <string name="hostPort">Host Port</string>
+    <string name="hostAddress">Host Address</string>
     
 </resources>

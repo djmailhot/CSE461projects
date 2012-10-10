@@ -47,7 +47,8 @@ android.apps=edu.uw.cs.cse461.AndroidApps.Infrastructure.AndroidAppManager \
              edu.uw.cs.cse461.AndroidApps.EchoRawActivity   \
              edu.uw.cs.cse461.AndroidApps.PingRPCActivity   \
              edu.uw.cs.cse461.AndroidApps.SNetActivity      \
-             edu.uw.cs.cse461.AndroidApps.VersionActivity
+             edu.uw.cs.cse461.AndroidApps.VersionActivity	\
+             edu.uw.cs.cse461.AndroidApps.PingTCPMessageHandlerActivity
 android.initialapp=AndroidAppManager
 
 #------------------------------------------------
@@ -82,6 +83,14 @@ httpd.port=
 httpd.name=default.12au.www
 
 #------------------------------------------------
+# TCP Message Handler config
+#------------------------------------------------
+
+# timeout in ms
+tcpmessagehandler.readmessagetimeout=5000
+tcpmessagehandler.readmessageinterval=5
+
+#------------------------------------------------
 # Echo and Ping configs
 #   Both apps use the server and port information.
 #------------------------------------------------
@@ -94,8 +103,8 @@ echoraw.server=attu2.cs.washington.edu
 echoraw.udpport=46102
 echoraw.tcpport=46102
 
-echotcpmessagehandler.server=attu2.cs.washington.edu
-echotcpmessagehandler.port=46111
+echotcpmessagehandler.server=128.208.5.25
+echotcpmessagehandler.port=46219
 
 echorpc.server=attu2.cs.washington.edu
 echorpc.port=46120

@@ -54,6 +54,10 @@
             android:name="edu.uw.cs.cse461.AndroidApps.VersionActivity"
             android:label="@string/title_activity_version" >
         </activity>
+        <activity
+            android:name=".PingTCPMessageHandlerActivity"
+            android:label="@string/title_activity_pingTCPMsgHndlr" >
+        </activity>
     </application>
 
 </manifest>

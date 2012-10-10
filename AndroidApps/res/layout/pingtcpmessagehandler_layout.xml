@@ -24,36 +24,69 @@
             android:id="@+id/pingtcpmessagehandler_iptext"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignParentLeft="true"
             android:layout_alignParentRight="true"
             android:layout_below="@+id/pingtcpmessagehandler_myiptext"
             android:layout_marginTop="5dp"
             android:ems="10"
+            android:hint="Address"
             android:inputType="text" />
 
-        <Button
-            android:id="@+id/pingtcpmessagehandler_gobutton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentLeft="true"
-            android:layout_below="@+id/pingtcpmessagehandler_iptext"
-            android:layout_marginLeft="70dp"
-            android:onClick="onGoClicked"
-            android:layout_marginTop="5dp"
-            android:text="@string/echo" />
+        <requestFocus />
 
         <TextView
             android:id="@+id/pingtcpmessagehandler_outputtext"
             android:layout_width="wrap_content"
             android:layout_height="170dp"
+            android:layout_alignParentBottom="true"
             android:layout_alignParentLeft="true"
-            android:layout_alignRight="@+id/pingtcpmessagehandler_iptext"
-            android:layout_below="@+id/pingtcpmessagehandler_gobutton"
-            android:layout_marginTop="5dp"
+            android:layout_alignRight="@+id/pingtcpmessagehandler_porttext"
+            android:layout_marginBottom="73dp"
             android:ems="10"
             android:textSize="16sp" />
 
+        <EditText
+            android:id="@+id/pingtcpmessagehandler_porttext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignRight="@+id/pingtcpmessagehandler_iptext"
+            android:layout_below="@+id/pingtcpmessagehandler_iptext"
+            android:ems="10"
+            android:hint="Port number"
+            android:inputType="text" >
+
             <requestFocus />
+        </EditText>
+
+        <TextView
+            android:id="@+id/textView1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignBaseline="@+id/pingtcpmessagehandler_iptext"
+            android:layout_alignBottom="@+id/pingtcpmessagehandler_iptext"
+            android:layout_alignParentLeft="true"
+            android:text="@string/hostAddress"
+            android:textAppearance="?android:attr/textAppearanceSmall" />
+
+        <TextView
+            android:id="@+id/textView2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignBaseline="@+id/pingtcpmessagehandler_porttext"
+            android:layout_alignBottom="@+id/pingtcpmessagehandler_porttext"
+            android:layout_alignLeft="@+id/textView1"
+            android:text="@string/hostPort"
+            android:textAppearance="?android:attr/textAppearanceSmall" />
+
+        <Button
+            android:id="@+id/pingtcpmessagehandler_gobutton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignLeft="@+id/textView2"
+            android:layout_below="@+id/pingtcpmessagehandler_porttext"
+            android:layout_marginTop="20dp"
+            android:layout_toLeftOf="@+id/pingtcpmessagehandler_porttext"
+            android:onClick="onGoClicked"
+            android:text="@string/ping" />
 
     </RelativeLayout>
 
