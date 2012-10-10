@@ -40,7 +40,7 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 	private final int readMessageTimeout;
 	private final int readMessageInterval;
 
-	private int maxReadLength = 100;
+	private int maxReadLength = 1000;
 	
 	//--------------------------------------------------------------------------------------
 	// helper routines
