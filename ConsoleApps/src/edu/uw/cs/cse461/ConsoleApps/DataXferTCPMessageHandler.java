@@ -114,7 +114,8 @@ public class DataXferTCPMessageHandler extends NetLoadableConsoleApp implements 
 					message.append("transferSize", xferLength);
 				} catch (JSONException e1) {
 					Log.i(TAG, "Failed to create the message to send to the TCPMessageHandler");
-					e1.printStackTrace(); // TODO get to the finally clause and skip the rest of this.	
+					e1.printStackTrace();
+					throw new IOException("Skipping the rest of this code, because it would be pointless");
 				}
 				tcpMessageHandlerSocket.sendMessage(message);
 				
