@@ -137,9 +137,7 @@ public class PingTCPMessageHandlerActivity extends NetLoadableAndroidApp {
     }
     
     public void onGoClicked(View b) {
-    	String msg = "reached onGoClicked()"; 
-    	Log.d(TAG, msg);
-    	_setOutputText(msg);
+    	Log.d(TAG,"reached onGoClicked()");
     	
     	//update IP, port to the latest from the UI
     	if ( ipBox != null ) mServerIP = ipBox.getText().toString();
@@ -150,6 +148,7 @@ public class PingTCPMessageHandlerActivity extends NetLoadableAndroidApp {
     	SharedPreferences.Editor editor = settings.edit();
     	editor.putString("serverip", mServerIP);
     	editor.putString("serverport", mServerPort);
+    	editor.commit();
 
     	// Starting Android 4.0, can't use the main thread to touch the network.
     	// So, most of your code goes inside this thread's run() method.
@@ -166,6 +165,9 @@ public class PingTCPMessageHandlerActivity extends NetLoadableAndroidApp {
     							socket = new Socket(mServerIP, Integer.parseInt(mServerPort));
     						} catch (IOException e) {
     							e.printStackTrace();
+    							String msg = "Failed to establish connection";
+    							_setOutputText(msg);
+    							Log.w(TAG,msg);
     							return;
     						}
     							
@@ -180,6 +182,9 @@ public class PingTCPMessageHandlerActivity extends NetLoadableAndroidApp {
     							} catch (IOException er) {
     								er.printStackTrace();
     							}
+    							String msg = "Failed to set socket timeout";
+    							_setOutputText(msg);
+    							Log.w(TAG,msg);
     							return;
     						}
     						
@@ -191,6 +196,9 @@ public class PingTCPMessageHandlerActivity extends NetLoadableAndroidApp {
     							tmh = new TCPMessageHandler(socket);
     						} catch (IOException e) {
     							e.printStackTrace();
+    							String msg = "Failed to set up TCPMessageHandler";
+    							_setOutputText(msg);
+    							Log.w(TAG,msg);
     							return;
     						}
     						
@@ -212,6 +220,9 @@ public class PingTCPMessageHandlerActivity extends NetLoadableAndroidApp {
         						} catch (IOException er) {
         							er.printStackTrace();
         						}
+    							String msg = "Failed to receive response";
+    							_setOutputText(msg);
+    							Log.w(TAG,msg);
     							return;
     						}    							
     						
@@ -221,16 +232,20 @@ public class PingTCPMessageHandlerActivity extends NetLoadableAndroidApp {
     							socket.close();
     						} catch (IOException e) {
     							e.printStackTrace();
+    							String msg = "Failed to close the socket";
+    							_setOutputText(msg);
+    							Log.w(TAG,msg);
     							return;
     						}
     					
     						
     						// Calculate the ping time and display it on the UI
-    						ElapsedTime.stop("PingTCPMessage");
-    						String time = Double.toString(ElapsedTime.abort("PingTCPMessage"));
+    						double realTime = ElapsedTime.stop("PingTCPMessage");
+    						String time = Double.toString(realTime);
     						if(time.length()>5){
-    							time = time.substring(0, 4);
+    							time = time.substring(0, 5);
     						}
+    						if(realTime==0) Log.e(TAG,"response can't take 0 time");
     						_setOutputText("Ping time taken: " + time + " ms");
     					}
     				});

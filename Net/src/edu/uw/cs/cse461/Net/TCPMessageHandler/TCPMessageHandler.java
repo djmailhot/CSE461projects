@@ -168,7 +168,7 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 				// if the stream wasn't finished, then update byte counts
 				totalBytesRead += bytesRead;
 			} else {
-				break;
+				throw new IOException("Socket was closed.");
 			}
 		}
 		Log.d(TAG, totalBytesRead+" total bytes read from the socket");
