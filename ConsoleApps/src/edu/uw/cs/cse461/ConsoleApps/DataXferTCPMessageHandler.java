@@ -10,7 +10,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.uw.cs.cse461.ConsoleApps.DataXferInterface.DataXferTCPMessageHandlerInterface;
-import edu.uw.cs.cse461.Net.Base.DataXferRawService;
 import edu.uw.cs.cse461.Net.Base.NetBase;
 import edu.uw.cs.cse461.Net.Base.NetLoadable.NetLoadableConsoleApp;
 import edu.uw.cs.cse461.Net.TCPMessageHandler.TCPMessageHandler;
@@ -39,7 +38,7 @@ public class DataXferTCPMessageHandler extends NetLoadableConsoleApp implements 
 			BufferedReader console = new BufferedReader(new InputStreamReader(System.in));
 
 			ConfigManager config = NetBase.theNetBase().config();
-			String server = config.getProperty("echotcpmessagehandler.server"); // TODO Change me!
+			String server = config.getProperty("dataxfertcpmessagehandler.server"); 
 			if ( server == null ) {
 				System.out.print("Enter a host ip, or exit to exit: ");
 				server = console.readLine();
@@ -47,7 +46,7 @@ public class DataXferTCPMessageHandler extends NetLoadableConsoleApp implements 
 				if ( server.equals("exit")) return;
 			}
 
-			int port = config.getAsInt("echotcpmessagehandler.port", -1, TAG); // TODO Change me!
+			int port = config.getAsInt("dataxfertcpmessagehandler.port", -1, TAG); 
 			if ( port == -1 ) {
 				System.out.print("Enter port number, or empty line to exit: ");
 				String portStr = console.readLine();
@@ -70,26 +69,21 @@ public class DataXferTCPMessageHandler extends NetLoadableConsoleApp implements 
 				nTrials = Integer.parseInt(trialStr);
 			}
 
-			for ( int index=0; index<DataXferRawService.NPORTS; index++ ) {
+			TransferRate.clear();
+			int xferLength = 1000; 
+			System.out.println("\n" + xferLength + " bytes");
 
-				TransferRate.clear();
-				
-				int xferLength = DataXferRawService.XFERSIZE[index]; // TODO figure out better way to assign the length to send
-
-				System.out.println("\n" + xferLength + " bytes");
-
-				//-----------------------------------------------------
-				// TCP transfer
-				//-----------------------------------------------------
-
-				TransferRateInterval tcpStats = DataXfer(server, port, socketTimeout, xferLength, nTrials);
-
-				System.out.println("\nTCP: xfer rate = " + String.format("%9.0f", tcpStats.mean() * 1000.0) + " bytes/sec.");
-				System.out.println("TCP: failure rate = " + String.format("%5.1f", tcpStats.failureRate()) +
-						           " [" + tcpStats.nAborted()+ "/" + tcpStats.nTrials() + "]");
-
-			}
+			//-----------------------------------------------------
+			// TCP transfer
+			//-----------------------------------------------------
 			
+			TransferRateInterval tcpStats = DataXfer(server, port, socketTimeout, xferLength, nTrials);
+			
+			System.out.println("\nTCP: xfer rate = " + String.format("%9.0f", tcpStats.mean() * 1000.0) + " bytes/sec.");
+			System.out.println("TCP: failure rate = " + String.format("%5.1f", tcpStats.failureRate()) +
+					" [" + tcpStats.nAborted()+ "/" + tcpStats.nTrials() + "]");
+
+						
 		} catch (Exception e) {
 			System.out.println("Unanticipated exception: " + e.getMessage());
 		}
