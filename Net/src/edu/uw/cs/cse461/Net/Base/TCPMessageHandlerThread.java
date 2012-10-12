@@ -32,7 +32,7 @@ public class TCPMessageHandlerThread implements DataThreadInterface {
 		_maxPacketSize = maxPacketSize;
 		_timeOut = timeout;
 		handler = null;
-		Log.i(TAG, " constructor: server set up at port: " + portNumber);
+		Log.i(TAG, "server set up at port: " + portNumber);
 	}
 	
 	/*************
@@ -65,14 +65,14 @@ public class TCPMessageHandlerThread implements DataThreadInterface {
 			e.printStackTrace();
 			return;
 		}
-		
-		Log.i(TAG, "server started at port: " + _portNumber);
 			
 		//loop until time to close
 		boolean error = false;
 		boolean timedOut = false;
 		Socket s = null;
 		while(true){
+			
+			Log.i(TAG, "server started at port: " + _portNumber);
 			//set up socket to accept.  Code hangs on .accept() until a connection is established or
 			// TIMEOUT ms have passed.
 			try {
@@ -103,7 +103,7 @@ public class TCPMessageHandlerThread implements DataThreadInterface {
 						handler.sendMessage(message);
 						bitsLeft -= packetSize;
 
-						Log.i(TAG, packetSize+"-bit packet sent.");
+						Log.d(TAG, packetSize+"-bit packet sent.");
 					}
 				} catch (Exception e1) {
 					Log.w(TAG, "trouble sending response");
@@ -132,7 +132,6 @@ public class TCPMessageHandlerThread implements DataThreadInterface {
 					
 					
 					Log.i(TAG, "closing connection.");
-					Log.i(TAG, "server started at port: " + _portNumber);
 				} catch (IOException e) {e.printStackTrace();}
 			} 
 			

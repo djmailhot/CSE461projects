@@ -80,7 +80,7 @@ public class DataXferTCPMessageHandler extends NetLoadableConsoleApp implements 
 					xferLength = Integer.parseInt(line);
 				}
 			} catch (NumberFormatException e) { // use default
-				System.out.print("Sorry, format not recognized, using default length");
+				System.out.println("Sorry, format not recognized, using default length");
 			} finally {
 				System.out.println("Requesting transfer of "+xferLength);
 			}
