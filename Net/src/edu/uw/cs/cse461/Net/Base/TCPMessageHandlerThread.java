@@ -6,27 +6,33 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 
+import org.json.JSONObject;
+
 import edu.uw.cs.cse461.Net.TCPMessageHandler.TCPMessageHandler;
+import edu.uw.cs.cse461.util.Log;
 
 public class TCPMessageHandlerThread implements DataThreadInterface {
+	private static final String TAG = "TCPMessageHandlerThread";
+	private static final String TRANSFER_SIZE_KEY = "transferSize";
+	
 	private int _timeOut = 750; //time in MS between checks to see if its time to shut down
 	private int _portNumber;					//port number to receive connections in
 	private ServerSocket _server;				//a server socket for the current available connection
 	private TCPMessageHandler handler;			//a TCPMessageHandler to handle the connection details
 	private boolean _timeToClose = false;		//flag set when end() is called to signal the thread to shut down
-	private int _xferSize;						//size of server response in bytes
+	private int _maxPacketSize;						//size of server response in bytes
 	
 	/*************
 	 * Constructs a new thread, but does not start it running
 	 * @param portNumber - a valid network port number in this domain
-	 * @param xferSize - the size in bytes of the response to be sent
+	 * @param maxPacketSize - the max size in bytes of each response packet
 	 */
-	public TCPMessageHandlerThread(int portNumber, int xferSize, int timeout){
+	public TCPMessageHandlerThread(int portNumber, int maxPacketSize, int timeout){
 		_portNumber = portNumber;
-		_xferSize = xferSize;
+		_maxPacketSize = maxPacketSize;
 		_timeOut = timeout;
 		handler = null;
-		System.out.println("TCPMessageHandlerThread constructor: server set up at port: " + portNumber);
+		Log.i(TAG, " constructor: server set up at port: " + portNumber);
 	}
 	
 	/*************
@@ -36,7 +42,7 @@ public class TCPMessageHandlerThread implements DataThreadInterface {
 	 *     - _portNumber is not available
 	 *     - an exception is thrown while the socket TIMEOUT is being set (perhaps a bad value)
 	 * Once the socket is made, it will wait for a connection.  If a connection is established,
-	 *   it will send a packet of size _xferSize bytes to the client.  There are no guarantees
+	 *   it will send packets of size _maxPacketSize bytes to the client.  There are no guarantees
 	 *   what the contents of the packet will be.
 	 * Every TIMEOUT ms, the thread will check the _timeToClose flag to see if its time to shut
 	 *   this server thread down.  The flag can be set to 'true' by a call to end() from this or 
@@ -60,7 +66,7 @@ public class TCPMessageHandlerThread implements DataThreadInterface {
 			return;
 		}
 		
-		System.out.println("TCPMessageHandlerThread.run: server started at port: " + _portNumber);
+		Log.i(TAG, "server started at port: " + _portNumber);
 			
 		//loop until time to close
 		boolean error = false;
@@ -72,11 +78,11 @@ public class TCPMessageHandlerThread implements DataThreadInterface {
 			try {
 				s = _server.accept();
 				handler = new TCPMessageHandler(s);
-				System.out.println("TCPMessageHandlerThread.run: TCP connection established.");
+				Log.i(TAG, "TCP connection established.");
 			} catch (SocketTimeoutException e) {
 				timedOut = true;
 			} catch (IOException e) {
-				System.err.println("TCPMessageHandlerThread.run: IOException on accept.");
+				Log.w(TAG, "IOException on accept.");
 				error = true;
 			} 
 			
@@ -84,13 +90,23 @@ public class TCPMessageHandlerThread implements DataThreadInterface {
 			//  and we attempt to send the response
 			if(!error && !timedOut){
 				try {
-					handler.readMessageAsBytes();
-					System.out.println("TCPMessageHandlerThread.run: transmitting message of length " + _xferSize + " to " + s.getInetAddress());
-					byte message[] = new byte[_xferSize];
-					handler.sendMessage(message);
-					System.out.println("TCPMessageHandlerThread.run: message transmitted.");
+					JSONObject jsonRequest = handler.readMessageAsJSONObject();
+					int xferSize = jsonRequest.getInt(TRANSFER_SIZE_KEY);
+
+					Log.i(TAG, "transmitting message of length " + xferSize + " to " + s.getInetAddress());
+
+					int bitsLeft = xferSize;
+					while (bitsLeft > 0) {
+						int packetSize = (bitsLeft < _maxPacketSize) ? bitsLeft : _maxPacketSize;
+						byte message[] = new byte[packetSize];
+
+						handler.sendMessage(message);
+						bitsLeft -= packetSize;
+
+						Log.i(TAG, packetSize+"-bit packet sent.");
+					}
 				} catch (Exception e1) {
-					System.err.println("TCPMessageHandlerThread.run: trouble sending response");
+					Log.w(TAG, "trouble sending response");
 					e1.printStackTrace();
 				}
 				
@@ -115,8 +131,8 @@ public class TCPMessageHandlerThread implements DataThreadInterface {
 					}
 					
 					
-					System.out.println("TCPMessageHandlerThread.run: closing connection.");
-					System.out.println("TCPMessageHandlerThread.run: server started at port: " + _portNumber);
+					Log.i(TAG, "closing connection.");
+					Log.i(TAG, "server started at port: " + _portNumber);
 				} catch (IOException e) {e.printStackTrace();}
 			} 
 			

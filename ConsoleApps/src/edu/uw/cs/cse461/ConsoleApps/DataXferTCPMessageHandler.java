@@ -20,6 +20,8 @@ import edu.uw.cs.cse461.util.SampledStatistic.TransferRateInterval;
 
 public class DataXferTCPMessageHandler extends NetLoadableConsoleApp implements DataXferTCPMessageHandlerInterface {
 	private static final String TAG="DataXferTCPMessageHandler";
+	private static final int DEFAULT_XFER_LENGTH = 1000;
+	private static final String TRANSFER_SIZE_KEY = "transferSize";
 
 	// ConsoleApp's must have a constructor taking no arguments
 	public DataXferTCPMessageHandler() throws Exception {
@@ -70,8 +72,18 @@ public class DataXferTCPMessageHandler extends NetLoadableConsoleApp implements 
 			}
 
 			TransferRate.clear();
-			int xferLength = 1000; 
-			System.out.println("\n" + xferLength + " bytes");
+			int xferLength = DEFAULT_XFER_LENGTH;
+			System.out.print("Enter number of bytes to transfer (or blank for default of "+DEFAULT_XFER_LENGTH+"): ");
+			try {
+				String line = console.readLine();
+				if (!line.equals("")) {
+					xferLength = Integer.parseInt(line);
+				}
+			} catch (NumberFormatException e) { // use default
+				System.out.print("Sorry, format not recognized, using default length");
+			} finally {
+				System.out.println("Requesting transfer of "+xferLength);
+			}
 
 			//-----------------------------------------------------
 			// TCP transfer
@@ -111,7 +123,7 @@ public class DataXferTCPMessageHandler extends NetLoadableConsoleApp implements 
 				TCPMessageHandler tcpMessageHandlerSocket = new TCPMessageHandler(socket);
 				JSONObject message = new JSONObject();
 				try {
-					message.append("transferSize", xferLength);
+					message.append(TRANSFER_SIZE_KEY, xferLength);
 				} catch (JSONException e1) {
 					Log.i(TAG, "Failed to create the message to send to the TCPMessageHandler");
 					e1.printStackTrace();

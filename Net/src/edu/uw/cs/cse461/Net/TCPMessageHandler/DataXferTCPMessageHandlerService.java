@@ -9,7 +9,7 @@ import edu.uw.cs.cse461.util.Log;
 public class DataXferTCPMessageHandlerService extends NetLoadableService  {
 	private static final String TAG="DataXferTCPMessageHandlerService";
 	
-	public static final int XFERSIZE = 1000;
+	public static final int MAX_PACKET_SIZE = 1000;
 
 	private int portNum;
 	private TCPMessageHandlerThread tCPDataThread;
@@ -25,7 +25,7 @@ public class DataXferTCPMessageHandlerService extends NetLoadableService  {
 		if (portNum == 0) throw new RuntimeException("dataxfertcpmessagehandler service can't run -- no dataxfertcpmessagehandler.port entry in config file");
 
 		// Init data thread sockets
-		tCPDataThread = new TCPMessageHandlerThread(portNum, XFERSIZE,timeout);
+		tCPDataThread = new TCPMessageHandlerThread(portNum, MAX_PACKET_SIZE,timeout);
 		
 		startup();
 	}
