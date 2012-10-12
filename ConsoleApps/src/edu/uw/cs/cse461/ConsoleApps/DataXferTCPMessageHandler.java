@@ -113,7 +113,7 @@ public class DataXferTCPMessageHandler extends NetLoadableConsoleApp implements 
 		for (int i = 0; i < nTrials; i++) {
 			System.out.println("trial number: " + i);
 			TransferRate.start("tcp");
-			int dataTransferred = 0;
+			int dataReceived = 0;
 			Socket socket = null;
 			try {
 				socket = new Socket();
@@ -121,36 +121,35 @@ public class DataXferTCPMessageHandler extends NetLoadableConsoleApp implements 
 				//  Attempts to create a TCP socket.  If this fails, aborts the timer and starts it again
 				socket.connect(new InetSocketAddress(hostIP, tcpPort));
 				TCPMessageHandler tcpMessageHandlerSocket = new TCPMessageHandler(socket);
-				JSONObject message = new JSONObject();
+				JSONObject request = new JSONObject();
 				try {
-					message.append(TRANSFER_SIZE_KEY, xferLength);
+					request.put(TRANSFER_SIZE_KEY, xferLength);
 				} catch (JSONException e1) {
 					Log.i(TAG, "Failed to create the message to send to the TCPMessageHandler");
 					e1.printStackTrace();
 					throw new IOException("Skipping the rest of this code, because it would be pointless");
 				}
-				tcpMessageHandlerSocket.sendMessage(message);
+				tcpMessageHandlerSocket.sendMessage(request);
 				
-				byte[] buf = tcpMessageHandlerSocket.readMessageAsBytes();
-				// No matter what, TCPMessageHandler will be done when it returns, so assume it has handled things correctly.
+				byte[] buf = null;
+				while (dataReceived < xferLength) {
+					buf = tcpMessageHandlerSocket.readMessageAsBytes();
+					// No matter what, TCPMessageHandler will be done when it returns, so assume it has handled things correctly.
+					dataReceived += buf.length;
+				}
 				
-				if (buf != null) {
-					dataTransferred += buf.length;
-					if (dataTransferred == xferLength) {
-						// trial successful!
-						TransferRate.stop("tcp", dataTransferred);
-					} else {
-						TransferRate.abort("tcp", dataTransferred);
-						// dataTransferred will be changed here, whereas in the other else branch it will not
-					}
+				if (dataReceived == xferLength) {
+					// trial successful!
+					TransferRate.stop("tcp", dataReceived);
 				} else {
-					TransferRate.abort("tcp", dataTransferred);
+					TransferRate.abort("tcp", dataReceived);
+					// dataReceived will be changed here, whereas in the other else branch it will not
 				}
 				tcpMessageHandlerSocket.discard();
 				
 			} catch (IOException e) {
 				e.printStackTrace();
-				TransferRate.abort("tcp", dataTransferred);
+				TransferRate.abort("tcp", dataReceived);
 			} finally {
 				try {
 					socket.close();
