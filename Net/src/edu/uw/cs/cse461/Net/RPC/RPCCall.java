@@ -131,9 +131,7 @@ public class RPCCall extends NetLoadableService {
 		call.put("app", serviceName);
 		call.put("method", method);
 		call.put("host", ip);
-		JSONObject message = new JSONObject();
-		message.put("msg", userRequest);
-		call.put("args", message);
+		call.put("args", userRequest);
 		
 		Log.d(TAG, "Attempting to send the call");
 		handler.sendMessage(call);
