@@ -113,13 +113,15 @@ public class RPCCall extends NetLoadableService {
 		String result = response.getString("type");
 		// If an error occurs, we want to be informed of it and stop executing this message.
 		if (result.equals("ERROR")) {
-			return response;
+			JSONObject message = new JSONObject();
+			message.put("msg", "Error: " + response.getString("msg"));
+			return message;
 		} else if (result.equals("OK")) {
 			// Makes sure that the response we are receiving was actually for the handshake we sent
 			if (response.getInt("callid") != callid) {
-				Log.e(TAG, "Received a response from the server with the wrong callid number");
-				Log.e(TAG, response.toString());
-				return response;
+				JSONObject msg = new JSONObject();
+				msg.put("msg", "Error: incorrect callid in " + response.getString("msg"));
+				return msg;
 			}
 			Log.d(TAG, "Handshake successful");
 		}
@@ -138,16 +140,18 @@ public class RPCCall extends NetLoadableService {
 		
 		Log.d(TAG, "Attempting to receive a response");
 		response = handler.readMessageAsJSONObject();
-		// Makes sure that the response we are receiving was actually for the call we sent
-		if (response.getInt("callid") != callid*2) {
-			Log.e(TAG, "Received a response to the call from the server with the wrong callid number");		
-			return null;
+		result = response.getString("type");
+		if (result.equals("ERROR")) {
+			JSONObject msg = new JSONObject();
+			msg.put("msg", "Error: " + response.getString("message"));
+			return msg;
 		} else {
-			result = response.getString("type");
-			if (result.equals("ERROR")) {
-				Log.e(TAG, "Error received: " + response.get("message").toString());
-				Log.e(TAG, "on message " + response.getJSONObject("callargs").toString());
-				return null;
+			// Makes sure that the response we are receiving was actually for the call we sent
+			if (response.getInt("callid") != callid*2) {
+				JSONObject msg = new JSONObject();
+				msg.put("msg", "Error: incorrect callid in message " + response.getString("message"));
+				Log.d(TAG, response.toString());
+				return msg;
 			} else {
 				Log.d(TAG, response.toString());
 				return response.getJSONObject("value");
