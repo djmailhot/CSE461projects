@@ -124,6 +124,10 @@ public class RPCCall extends NetLoadableService {
 				return msg;
 			}
 			Log.d(TAG, "Handshake successful");
+		} else {
+			JSONObject msg = new JSONObject();
+			msg.put("msg", "Error: unexpected response from the server");
+			return msg;
 		}
 		
 		// If we have reached this point, we know that the handshake was successful, so it is safe to send the user's message.
@@ -145,7 +149,7 @@ public class RPCCall extends NetLoadableService {
 			JSONObject msg = new JSONObject();
 			msg.put("msg", "Error: " + response.getString("message"));
 			return msg;
-		} else {
+		} else if (result.equals("OK")) {
 			// Makes sure that the response we are receiving was actually for the call we sent
 			if (response.getInt("callid") != callid*2) {
 				JSONObject msg = new JSONObject();
@@ -156,6 +160,10 @@ public class RPCCall extends NetLoadableService {
 				Log.d(TAG, response.toString());
 				return response.getJSONObject("value");
 			}
+		} else {
+			JSONObject msg = new JSONObject();
+			msg.put("msg", "Error: unexpected response from the server");
+			return msg;
 		}
 	}
 	
