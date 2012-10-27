@@ -72,9 +72,6 @@ public class TCPMessageHandlerThread implements DataThreadInterface {
 		Socket s = null;
 		while(true){
 			
-			Log.i(TAG, "server started at port: " + _portNumber);
-			//set up socket to accept.  Code hangs on .accept() until a connection is established or
-			// TIMEOUT ms have passed.
 			try {
 				s = _server.accept();
 				handler = new TCPMessageHandler(s);
@@ -113,23 +110,7 @@ public class TCPMessageHandlerThread implements DataThreadInterface {
 				try {
 					s.close();
 					handler.discard();
-					handler = null;
-					try {
-						_server.close();
-						_server = new ServerSocket(_portNumber);
-					} catch (IOException e) {
-						e.printStackTrace();
-						return;
-					}
-					
-					//attempt to set the timeout between successive checks of _timeToClose flag
-					try {
-						_server.setSoTimeout(_timeOut);
-					} catch (SocketException e) {
-						e.printStackTrace();
-						return;
-					}
-					
+					handler = null;	
 					
 					Log.i(TAG, "closing connection.");
 				} catch (IOException e) {e.printStackTrace();}
