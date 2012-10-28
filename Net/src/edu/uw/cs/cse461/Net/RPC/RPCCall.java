@@ -120,13 +120,13 @@ public class RPCCall extends NetLoadableService {
 			// Makes sure that the response we are receiving was actually for the handshake we sent
 			if (response.getInt("callid") != callid) {
 				JSONObject msg = new JSONObject();
-				msg.put("msg", "Error: incorrect callid in " + response.getString("msg"));
+				msg.put("msg", "Error: server says " + response.getString("msg"));
 				return msg;
 			}
 			Log.d(TAG, "Handshake successful");
 		} else {
 			JSONObject msg = new JSONObject();
-			msg.put("msg", "Error: unexpected response from the server");
+			msg.put("msg", "Error: server is behaving oddly");
 			return msg;
 		}
 		
@@ -153,7 +153,7 @@ public class RPCCall extends NetLoadableService {
 			// Makes sure that the response we are receiving was actually for the call we sent
 			if (response.getInt("callid") != callid*2) {
 				JSONObject msg = new JSONObject();
-				msg.put("msg", "Error: incorrect callid in message " + response.getString("message"));
+				msg.put("msg", "Error: server says " + response.getString("message"));
 				Log.d(TAG, response.toString());
 				return msg;
 			} else {
