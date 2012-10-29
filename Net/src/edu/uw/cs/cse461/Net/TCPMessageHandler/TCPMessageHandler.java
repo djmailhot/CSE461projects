@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
@@ -37,8 +38,6 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 	private static final int MESSAGE_HEADER_SIZE = 4;
 
 	private Socket socket;
-	private final int readMessageTimeout;
-	private final int readMessageInterval;
 
 	private int maxReadLength = 1000;
 	
@@ -82,10 +81,6 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 	 */
 	public TCPMessageHandler(Socket sock) throws IOException {
 		socket = sock;
-
-		ConfigManager config = NetBase.theNetBase().config();
-		readMessageTimeout = config.getAsInt("tcpmessagehandler.readmessagetimeout", -1, TAG);
-		readMessageInterval = config.getAsInt("tcpmessagehandler.readmessageinterval", -1, TAG);
 	}
 	
 	/**
@@ -149,27 +144,22 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 		byte[] buf = new byte[readLength];
 
 		int totalBytesRead = 0;
-		int readTimeInMillis = 0; // Keep track of the total time reading
-		while(totalBytesRead < buf.length && readTimeInMillis < readMessageTimeout) {
-			// sleep the thread for a little bit
-			try {
-				Thread.sleep(readMessageInterval);
-			} catch (InterruptedException e) {
-				Log.i(TAG, "Socket read sleep timer interrupted");
-				e.printStackTrace();
-			}
-			readTimeInMillis += readMessageInterval;
+		try {
+			while(totalBytesRead < buf.length) {
+				// read from the stream
+				int bytesRead = inputStream.read(buf, totalBytesRead, buf.length - totalBytesRead);
 
-			// read from the stream
-			int bytesRead = inputStream.read(buf, totalBytesRead, buf.length - totalBytesRead);
-
-			// check if the stream was finished
-			if (bytesRead != -1) {
-				// if the stream wasn't finished, then update byte counts
-				totalBytesRead += bytesRead;
-			} else {
-				throw new IOException("Socket was closed.");
+				// check if the stream was finished
+				if (bytesRead != -1) {
+					// if the stream wasn't finished, then update byte counts
+					totalBytesRead += bytesRead;
+				} else {
+					throw new IOException("Socket was closed before "+readLength+" bytes could be read.");
+				}
 			}
+		} catch(SocketTimeoutException e) {
+			Log.i(TAG, "socket timed out");
+			return null;  // The message reading timed out, so return null
 		}
 		Log.d(TAG, totalBytesRead+" total bytes read from the socket");
 
