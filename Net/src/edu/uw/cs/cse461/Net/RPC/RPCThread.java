@@ -84,7 +84,7 @@ public class RPCThread implements DataThreadInterface {
 							errorMsg.put("host", host);
 							errorMsg.put("callid", -1);
 							errorMsg.put("type", "ERROR");
-							errorMsg.put("msg", "The following handshake did not have a correct type field: " + handshake.toString());
+							errorMsg.put("msg", "Error establishing connection");
 							handler.sendMessage(errorMsg);
 							Log.d(TAG, "received improper handshake");
 							break;
@@ -96,7 +96,7 @@ public class RPCThread implements DataThreadInterface {
 						errorMsg.put("host", host);
 						errorMsg.put("callid", -1);
 						errorMsg.put("type", "ERROR");
-						errorMsg.put("msg", "The following handshake did not have a type field: " + handshake.toString());
+						errorMsg.put("msg", "Error establishing connection");
 						handler.sendMessage(errorMsg);
 						Log.d(TAG, "received potential handshake that was not formulated correctly");
 						break;
@@ -137,7 +137,7 @@ public class RPCThread implements DataThreadInterface {
 							errorMsg.put("host", host);
 							errorMsg.put("callid", -1);
 							errorMsg.put("type", "ERROR");
-							errorMsg.put("message", "The request contained an incorrect type field");
+							errorMsg.put("message", "Error receiving request");
 							errorMsg.put("callargs", request);
 							handler.sendMessage(errorMsg);
 							Log.d(TAG, "received potential request that was not formulated correctly");
@@ -149,7 +149,7 @@ public class RPCThread implements DataThreadInterface {
 						errorMsg.put("host", host);
 						errorMsg.put("callid", -1);
 						errorMsg.put("type", "ERROR");
-						errorMsg.put("message", "The request did not have a type field");
+						errorMsg.put("message", "Error receiving request");
 						errorMsg.put("callargs", request);
 						handler.sendMessage(errorMsg);
 						Log.d(TAG, "received potential request that was not formulated correctly");
