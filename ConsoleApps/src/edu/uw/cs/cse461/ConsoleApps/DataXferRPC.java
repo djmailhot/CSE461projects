@@ -21,8 +21,8 @@ public class DataXferRPC extends NetLoadableConsoleApp implements DataXferRPCInt
 	private static final String TAG="DataXferRPC";
 	private static final int DEFAULT_XFER_LENGTH = 1000;
 	
-	protected DataXferRPC(String name, boolean implemented) {
-		super("dataxferrpc", implemented);
+	public DataXferRPC() {
+		super("dataxferrpc", true);
 	}
 
 	/**
@@ -116,14 +116,14 @@ public class DataXferRPC extends NetLoadableConsoleApp implements DataXferRPCInt
 			}
 
 			//-----------------------------------------------------
-			// TCP transfer
+			// RPC transfer
 			//-----------------------------------------------------
 			
-			TransferRateInterval tcpStats = DataXfer(server, port, xferLength, nTrials);
+			TransferRateInterval rpcStats = DataXfer(server, port, xferLength, nTrials);
 			
-			System.out.println("\nRPC: xfer rate = " + String.format("%9.0f", tcpStats.mean() * 1000.0) + " bytes/sec.");
-			System.out.println("RPC: failure rate = " + String.format("%5.1f", tcpStats.failureRate()) +
-					" [" + tcpStats.nAborted()+ "/" + tcpStats.nTrials() + "]");
+			System.out.println("\nRPC: xfer rate = " + String.format("%9.0f", rpcStats.mean() * 1000.0) + " bytes/sec.");
+			System.out.println("RPC: failure rate = " + String.format("%5.1f", rpcStats.failureRate()) +
+					" [" + rpcStats.nAborted()+ "/" + rpcStats.nTrials() + "]");
 
 						
 		} catch (Exception e) {
