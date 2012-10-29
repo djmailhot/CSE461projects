@@ -26,22 +26,25 @@ public class PingRPC extends NetLoadableConsoleApp implements PingRPCInterface {
 	@Override
 	public ElapsedTimeInterval ping(String hostIP, int port, int nTrials) throws Exception {
 		
-		ElapsedTime.start("PingRPC");
 		for(int i = 0; i<nTrials; i++){
-		
-			try {
+			try {		
+				ElapsedTime.start("PingRPC");
+				
 				JSONObject args = new JSONObject().put("derp", "herp");
 				JSONObject resultObj = RPCCall.invoke(hostIP, port,	"echorpc", "echo", args);
-
+				
+				ElapsedTime.stop("PingRPC");
 			} catch (JSONException e) {
+				ElapsedTime.abort("PingRPC");
 				Log.i(TAG, "JSON exception on calling into RPC layer.");
 				e.printStackTrace();
 			} catch (IOException e) {
+				ElapsedTime.abort("PingRPC");
 				Log.i(TAG, "IO exception on calling into RPC layer.");
 				e.printStackTrace();
 			}
 		}
-		ElapsedTime.stop("PingRPC");
+
 		return ElapsedTime.get("PingRPC");
 	}
 
@@ -65,7 +68,7 @@ public class PingRPC extends NetLoadableConsoleApp implements PingRPCInterface {
 
 				int targetTCPPort = config.getAsInt("echorpc.port", 0, TAG);
 				if ( targetTCPPort == 0 ) {
-					System.out.print("Enter the server's TCP port, or empty line to skip: ");
+					System.out.print("Enter the server's RPC port, or empty line to skip: ");
 					String targetTCPPortStr = console.readLine();
 					if ( targetTCPPortStr == null || targetTCPPortStr.trim().isEmpty() ) targetTCPPort = 0;
 					else targetTCPPort = Integer.parseInt(targetTCPPortStr);
@@ -75,7 +78,7 @@ public class PingRPC extends NetLoadableConsoleApp implements PingRPCInterface {
 				int nTrials = config.getAsInt("ping.ntrials", 5, TAG);
 				
 				System.out.println("Host: " + targetIP);
-				System.out.println("tcp port: " + targetTCPPort);
+				System.out.println("rpc port: " + targetTCPPort);
 				System.out.println("trials: " + nTrials);
 				
 				ElapsedTimeInterval rpcResult = null;
@@ -84,7 +87,7 @@ public class PingRPC extends NetLoadableConsoleApp implements PingRPCInterface {
 					rpcResult = ping(targetIP, targetTCPPort, nTrials);
 				}
 				
-				if ( rpcResult != null ) System.out.println("TCP: " + String.format("%.2f msec", rpcResult.mean()));
+				if ( rpcResult != null ) System.out.println("RPC: " + String.format("%.2f msec", rpcResult.mean()));
 
 			} catch (Exception e) {
 				System.out.println("Exception: " + e.getMessage());

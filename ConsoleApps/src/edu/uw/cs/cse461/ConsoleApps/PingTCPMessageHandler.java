@@ -113,7 +113,7 @@ public class PingTCPMessageHandler extends NetLoadableConsoleApp implements Ping
 
 				ElapsedTime.clear();
 
-				String targetIP = config.getProperty("pingtcpmessagehandler.server");
+				String targetIP = config.getProperty("echotcpmessagehandler.server");
 				if ( targetIP == null ) {
 					System.out.println("No echoraw.server entry in config file.");
 					System.out.print("Enter a host ip, or empty line to exit: ");
@@ -122,7 +122,7 @@ public class PingTCPMessageHandler extends NetLoadableConsoleApp implements Ping
 				}
 
 				
-				int targetTCPPort = config.getAsInt("pingtcpmessagehandler.port", 0, TAG);
+				int targetTCPPort = config.getAsInt("echotcpmessagehandler.port", 0, TAG);
 				if ( targetTCPPort == 0 ) {
 					System.out.print("Enter the server's TCP port, or empty line to skip: ");
 					String targetTCPPortStr = console.readLine();

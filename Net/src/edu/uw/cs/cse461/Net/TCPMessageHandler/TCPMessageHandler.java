@@ -96,7 +96,6 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 	 * Sets the maximum allowed size for which decoding of a message will be attempted.  Used to guard against possibly preposterous payload length values indicated in a received message (length + payload).
 	 * @return The previous setting of the maximum allowed message length.
 	 */
-	@Override
 	public int setMaxReadLength(int maxLen) {
 		int oldLength = maxReadLength;
 		maxReadLength = maxLen;
