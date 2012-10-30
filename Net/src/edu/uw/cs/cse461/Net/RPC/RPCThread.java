@@ -1,6 +1,8 @@
 package edu.uw.cs.cse461.Net.RPC;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
@@ -10,19 +12,31 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.uw.cs.cse461.Net.Base.DataThreadInterface;
+import edu.uw.cs.cse461.Net.Base.NetBase;
 import edu.uw.cs.cse461.Net.TCPMessageHandler.TCPMessageHandler;
+import edu.uw.cs.cse461.util.ConfigManager;
 import edu.uw.cs.cse461.util.Log;
 
 public class RPCThread implements DataThreadInterface {
 	private static final String TAG = "RPCThread";
 	
 	private boolean _timeToClose = false;		//flag set when end() is called to signal the thread to shut down
-	private int _timeOut = 750; //time in MS between checks to see if its time to shut down
+	private int _timeOut; //time in MS between checks to see if its time to shut down
 	private int portNum;
 	private ServerSocket socket;
 	private RPCService parent;
 	
-	public RPCThread(int portNum, RPCService parent) {
+	public RPCThread(int portNum, RPCService parent) throws Exception {
+		// Eclipse doesn't support System.console()
+		BufferedReader console = new BufferedReader(new InputStreamReader(System.in));
+		ConfigManager config = NetBase.theNetBase().config();
+		_timeOut = 1000*config.getAsInt("rpc.timeout", 0, TAG);
+		if ( _timeOut == 0 ) {
+			System.out.print("Enter the timeout, or empty line to exit: ");
+			String targetTimeoutString = console.readLine();
+			if ( targetTimeoutString == null || targetTimeoutString.trim().isEmpty() ) return;
+			else portNum = Integer.parseInt(targetTimeoutString);
+		}
 		this.portNum = portNum;
 		this.parent = parent;
 	}
