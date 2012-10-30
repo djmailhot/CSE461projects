@@ -130,18 +130,24 @@ public class RPCCall extends NetLoadableService {
 		if (result.equals("ERROR")) {
 			JSONObject message = new JSONObject();
 			message.put("msg", "Error: " + response.getString("msg"));
+			socket.close();
+			handler.discard();
 			return message;
 		} else if (result.equals("OK")) {
 			// Makes sure that the response we are receiving was actually for the handshake we sent
 			if (response.getInt("callid") != callid) {
 				JSONObject msg = new JSONObject();
 				msg.put("msg", "Error: server says " + response.getString("msg"));
+				socket.close();
+				handler.discard();
 				return msg;
 			}
 			Log.d(TAG, "Handshake successful");
 		} else {
 			JSONObject msg = new JSONObject();
 			msg.put("msg", "Error: server is behaving oddly");
+			socket.close();
+			handler.discard();
 			return msg;
 		}
 		
@@ -163,6 +169,8 @@ public class RPCCall extends NetLoadableService {
 		if (result.equals("ERROR")) {
 			JSONObject msg = new JSONObject();
 			msg.put("msg", "Error: " + response.getString("message"));
+			socket.close();
+			handler.discard();
 			return msg;
 		} else if (result.equals("OK")) {
 			// Makes sure that the response we are receiving was actually for the call we sent
@@ -170,14 +178,20 @@ public class RPCCall extends NetLoadableService {
 				JSONObject msg = new JSONObject();
 				msg.put("msg", "Error: server says " + response.getString("message"));
 				Log.d(TAG, response.toString());
+				socket.close();
+				handler.discard();
 				return msg;
 			} else {
 				Log.d(TAG, response.toString());
+				socket.close();
+				handler.discard();
 				return response.getJSONObject("value");
 			}
 		} else {
 			JSONObject msg = new JSONObject();
 			msg.put("msg", "Error: unexpected response from the server");
+			socket.close();
+			handler.discard();
 			return msg;
 		}
 	}

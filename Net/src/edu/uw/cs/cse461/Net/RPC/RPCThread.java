@@ -101,6 +101,8 @@ public class RPCThread implements DataThreadInterface {
 							errorMsg.put("msg", "Error establishing connection");
 							handler.sendMessage(errorMsg);
 							Log.d(TAG, "received improper handshake");
+							s.close();
+							handler.discard();
 							break;
 						}
 					} else {
@@ -113,6 +115,8 @@ public class RPCThread implements DataThreadInterface {
 						errorMsg.put("msg", "Error establishing connection");
 						handler.sendMessage(errorMsg);
 						Log.d(TAG, "received potential handshake that was not formulated correctly");
+						s.close();
+						handler.discard();
 						break;
 					}
 					Log.d(TAG, "reading request from client");
