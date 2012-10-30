@@ -1,7 +1,10 @@
 package edu.uw.cs.cse461.Net.RPC;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Timer;
@@ -13,6 +16,7 @@ import org.json.JSONObject;
 import edu.uw.cs.cse461.Net.Base.NetBase;
 import edu.uw.cs.cse461.Net.Base.NetLoadable.NetLoadableService;
 import edu.uw.cs.cse461.Net.TCPMessageHandler.TCPMessageHandler;
+import edu.uw.cs.cse461.util.ConfigManager;
 import edu.uw.cs.cse461.util.Log;
 
 /**
@@ -92,6 +96,19 @@ public class RPCCall extends NetLoadableService {
 			boolean tryAgain          // true if an invocation failure on a persistent connection should cause a re-try of the call, false to give up
 			) throws JSONException, IOException {
 		Socket socket = new Socket(ip, port);
+		ConfigManager config = NetBase.theNetBase().config();
+		int timeOut = 1000*config.getAsInt("rpc.timeout", 0, TAG); // convert seconds to milliseconds
+		if ( timeOut != 0 ) {
+			try {
+				socket.setSoTimeout(timeOut);
+			} catch (SocketException e) {
+				e.printStackTrace();
+				JSONObject socketError = new JSONObject();
+				socketError.put("msg", "An error occurred while setting the socket timeout");
+				return socketError;
+			}
+		}
+		
 		TCPMessageHandler handler = new TCPMessageHandler(socket);
 		JSONObject handshake = new JSONObject();
 		int callid = 5; // This choice is arbitrary TODO figure out a better id

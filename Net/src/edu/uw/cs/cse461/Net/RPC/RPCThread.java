@@ -35,7 +35,7 @@ public class RPCThread implements DataThreadInterface {
 			System.out.print("Enter the timeout in ms, or empty line to exit: ");
 			String targetTimeoutString = console.readLine();
 			if ( targetTimeoutString == null || targetTimeoutString.trim().isEmpty() ) return;
-			else portNum = Integer.parseInt(targetTimeoutString);
+			else _timeOut = Integer.parseInt(targetTimeoutString);
 		}
 		this.portNum = portNum;
 		this.parent = parent;
