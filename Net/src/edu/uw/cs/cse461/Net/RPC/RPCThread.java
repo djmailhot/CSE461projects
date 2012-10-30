@@ -30,9 +30,9 @@ public class RPCThread implements DataThreadInterface {
 		// Eclipse doesn't support System.console()
 		BufferedReader console = new BufferedReader(new InputStreamReader(System.in));
 		ConfigManager config = NetBase.theNetBase().config();
-		_timeOut = 1000*config.getAsInt("rpc.timeout", 0, TAG);
+		_timeOut = 1000*config.getAsInt("rpc.timeout", 0, TAG); // convert seconds to milliseconds
 		if ( _timeOut == 0 ) {
-			System.out.print("Enter the timeout, or empty line to exit: ");
+			System.out.print("Enter the timeout in ms, or empty line to exit: ");
 			String targetTimeoutString = console.readLine();
 			if ( targetTimeoutString == null || targetTimeoutString.trim().isEmpty() ) return;
 			else portNum = Integer.parseInt(targetTimeoutString);
