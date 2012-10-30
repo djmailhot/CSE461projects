@@ -44,7 +44,7 @@ public class RPCService extends NetLoadableService implements RPCServiceInterfac
 			// Eclipse doesn't support System.console()
 			BufferedReader console = new BufferedReader(new InputStreamReader(System.in));
 			ConfigManager config = NetBase.theNetBase().config();
-			portNum = config.getAsInt("echorpc.port", 0, TAG);
+			portNum = config.getAsInt("rpc.serverport", 0, TAG);
 			if ( portNum == 0 ) {
 				System.out.print("Enter the server's TCP port, or empty line to exit: ");
 				String targetTCPPortStr = console.readLine();
