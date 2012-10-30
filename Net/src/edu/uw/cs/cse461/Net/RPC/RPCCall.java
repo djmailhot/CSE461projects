@@ -33,7 +33,7 @@ import edu.uw.cs.cse461.util.Log;
  */
 public class RPCCall extends NetLoadableService {
 	private static final String TAG="RPCCall";
-
+	private int callid = 1;
 	//-------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------
 	// The static versions of invoke() is just a convenience for caller's -- it
@@ -109,8 +109,8 @@ public class RPCCall extends NetLoadableService {
 		
 		TCPMessageHandler handler = new TCPMessageHandler(socket);
 		JSONObject handshake = new JSONObject();
-		int callid = 5; // This choice is arbitrary TODO figure out a better id
-		handshake.put("id", callid); 
+		//int callid = 5; // This choice is arbitrary TODO figure out a better id
+		handshake.put("id", callid);
 		handshake.put("host", ip);
 		handshake.put("action", "connect");
 		handshake.put("type", "control");
@@ -150,6 +150,7 @@ public class RPCCall extends NetLoadableService {
 			handler.discard();
 			return msg;
 		}
+		callid++;
 		
 		// If we have reached this point, we know that the handshake was successful, so it is safe to send the user's message.
 		JSONObject call = new JSONObject();

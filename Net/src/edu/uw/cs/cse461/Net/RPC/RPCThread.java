@@ -68,6 +68,7 @@ public class RPCThread implements DataThreadInterface {
 			TCPMessageHandler handler = null;
 			try {
 				s = socket.accept();
+				s.setSoTimeout(_timeOut);
 				handler = new TCPMessageHandler(s);
 				Log.d(TAG, "run: TCP connection established.");
 			} catch (SocketTimeoutException e) {
@@ -173,6 +174,10 @@ public class RPCThread implements DataThreadInterface {
 						Log.d(TAG, "received potential request that was not formulated correctly");
 					}
 					
+				} catch (NullPointerException e) { 
+					Log.e(TAG, "run: socket connection closed unexpectedly");
+				} catch (SocketTimeoutException e) { 
+					Log.e(TAG, "run: socket timeout while waiting for request");
 				} catch (IOException e) {
 					Log.e(TAG, "run: IOException when reading from socket");
 				} catch (JSONException e) {
