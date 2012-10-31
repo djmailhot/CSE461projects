@@ -65,6 +65,7 @@ public class DataXferRPCService extends NetLoadableService {
 		JSONObject result = new JSONObject();
 		
 		int xferLength = args.getInt("xferLength");
+		Log.d(TAG, "received request for "+xferLength+" bytes.");
 		// catch bad arguments
 		if (xferLength < 0) {
 			xferLength = 0;
@@ -73,6 +74,7 @@ public class DataXferRPCService extends NetLoadableService {
 		byte[] data = new byte[xferLength];
 		result.put("data", Base64.encodeBytes(data));
 
+		Log.d(TAG, "Sending JSON response of size "+data.length);
 		return result;
 	}
 }

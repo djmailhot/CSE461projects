@@ -108,6 +108,7 @@ public class RPCCall extends NetLoadableService {
 		}
 		
 		TCPMessageHandler handler = new TCPMessageHandler(socket);
+		handler.setMaxReadLength(Integer.MAX_VALUE);
 		JSONObject handshake = new JSONObject();
 		handshake.put("id", callid);
 		handshake.put("host", ip);

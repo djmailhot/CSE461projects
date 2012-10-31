@@ -70,6 +70,7 @@ public class RPCThread implements DataThreadInterface {
 				s = socket.accept();
 				s.setSoTimeout(_timeOut);
 				handler = new TCPMessageHandler(s);
+				handler.setMaxReadLength(Integer.MAX_VALUE);
 				Log.d(TAG, "run: TCP connection established.");
 			} catch (SocketTimeoutException e) {
 				timeout = true;
