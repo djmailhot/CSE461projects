@@ -58,7 +58,7 @@ public class PingRPC extends NetLoadableConsoleApp implements PingRPCInterface {
 
 				ElapsedTime.clear();
 
-				String targetIP = config.getProperty("echorpc.server");
+				String targetIP = config.getProperty("rpc.server");
 				if ( targetIP == null ) {
 					System.out.println("No echoraw.server entry in config file.");
 					System.out.print("Enter a host ip, or empty line to exit: ");
@@ -66,7 +66,7 @@ public class PingRPC extends NetLoadableConsoleApp implements PingRPCInterface {
 					if ( targetIP == null || targetIP.trim().isEmpty() ) return;
 				}
 
-				int targetTCPPort = config.getAsInt("echorpc.port", 0, TAG);
+				int targetTCPPort = config.getAsInt("rpc.serverport", 0, TAG);
 				if ( targetTCPPort == 0 ) {
 					System.out.print("Enter the server's RPC port, or empty line to skip: ");
 					String targetTCPPortStr = console.readLine();

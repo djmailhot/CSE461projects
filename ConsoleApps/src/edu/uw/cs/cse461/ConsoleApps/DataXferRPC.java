@@ -78,7 +78,7 @@ public class DataXferRPC extends NetLoadableConsoleApp implements DataXferRPCInt
 			BufferedReader console = new BufferedReader(new InputStreamReader(System.in));
 
 			ConfigManager config = NetBase.theNetBase().config();
-			String server = config.getProperty("dataxferrpc.server"); 
+			String server = config.getProperty("rpc.server"); 
 			if ( server == null ) {
 				System.out.print("Enter a host ip, or exit to exit: ");
 				server = console.readLine();
@@ -86,7 +86,7 @@ public class DataXferRPC extends NetLoadableConsoleApp implements DataXferRPCInt
 				if ( server.equals("exit")) return;
 			}
 
-			int port = config.getAsInt("dataxferrpc.port", -1, TAG); 
+			int port = config.getAsInt("rpc.serverport", -1, TAG); 
 			if ( port == -1 ) {
 				System.out.print("Enter port number, or empty line to exit: ");
 				String portStr = console.readLine();
@@ -94,7 +94,7 @@ public class DataXferRPC extends NetLoadableConsoleApp implements DataXferRPCInt
 				port = Integer.parseInt(portStr);
 			}
 			
-			int nTrials = config.getAsInt("dataxferrpc.ntrials", -1, TAG);
+			int nTrials = config.getAsInt("dataxferraw.ntrials", -1, TAG);
 			if ( nTrials == -1 ) {
 				System.out.print("Enter number of trials: ");
 				String trialStr = console.readLine();
