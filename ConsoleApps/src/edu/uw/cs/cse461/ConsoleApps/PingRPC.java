@@ -58,7 +58,7 @@ public class PingRPC extends NetLoadableConsoleApp implements PingRPCInterface {
 
 				ElapsedTime.clear();
 
-				String targetIP = config.getProperty("rpc.server");
+				String targetIP = NetBase.theNetBase().myIP();
 				if ( targetIP == null ) {
 					System.out.println("No rpc.server entry in config file.");
 					System.out.print("Enter a host ip, or empty line to exit: ");

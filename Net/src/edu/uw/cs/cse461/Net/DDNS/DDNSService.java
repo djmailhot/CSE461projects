@@ -274,6 +274,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 	// Synchronized to prevent race conditions between register and unregister
 	public synchronized JSONObject _rpcRegister(JSONObject args) {
 		try {
+			Log.d(TAG, "rpc register called with args "+args);
 			DDNSFullName name = new DDNSFullName(args.getString("name"));
 			JSONObject node = new JSONObject();
 			JSONObject result = new JSONObject();

@@ -1,6 +1,7 @@
 package edu.uw.cs.cse461.Net.DDNS;
 
 import java.io.IOException;
+import java.util.Scanner;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -59,12 +60,13 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		int rootPort = Integer.parseInt(config.getProperty("ddns.rootport")); 
 		this.rootRecord = new DDNSRRecord.SOARecord(rootIp, rootPort);
 
-		String ip = config.getProperty("ddnsresolver.ip");
-		String port = config.getProperty("ddnsresolver.port");
+		this.ddnsPassword = config.getProperty("ddnsresolver.password");
+		
+		String ip = NetBase.theNetBase().myIP();
+		String port = config.getProperty("rpc.serverport");
 		this.hostRecord = new DDNSRRecord.ARecord(ip, Integer.parseInt(port));
-
-		DDNSFullNameInterface fullName = new DDNSFullName(config.getProperty("ddnsresolver.nodename"));
-		this.ddnsPassword = config.getProperty("ddnsresolver.password"); 
+		
+		DDNSFullNameInterface fullName = new DDNSFullName(NetBase.theNetBase().hostname()); 
 		register(fullName, this.hostRecord.port());
 	}
 
@@ -91,7 +93,6 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 	 */
 	@Override
 	public void register(DDNSFullNameInterface name, int port) throws DDNSException {
-
 		JSONObject args;
 		try {
 			args = new JSONObject()
@@ -99,10 +100,10 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 				.put("ip", hostRecord.ip())
 				.put("port", port)
 				.put("password", ddnsPassword);
-
+			
 			JSONObject response = invokeDDNSService("register", args);
-			JSONObject node = new JSONObject(response.getString("node"));
-	
+			//JSONObject node = response.getJSONObject("node");
+			
 			int lifetime = response.getInt("lifetime");
 		} catch (JSONException e) {
 			// TODO Auto-generated catch block
@@ -123,7 +124,7 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		JSONObject args = new JSONObject().put("name", nameStr);
 		JSONObject response = invokeDDNSService("resolve", args);
 
-		JSONObject node = new JSONObject(response.getString("node"));
+		JSONObject node = response.getJSONObject("node");
 
 		ARecord resultRecord = null;
 		String type = response.getString("type");
@@ -149,22 +150,25 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		String targetIp = rootRecord.ip();
 		int targetPort = rootRecord.port();
 		
+		Log.d(TAG, "rpc "+method+" request with args "+args);
+		
 		try {
 			do {
 				// invoke the name resolver
 
 				response = RPCCall.invoke(targetIp, targetPort, "ddns", method, args);
 	
+	            Log.d(TAG, "response payload of "+response);
 				// if the response is an exception, then throw the exception
 				if (response.getString("resulttype").equals("ddnsexception")) {
 					throw parseDDNSException(response);
 				}
 				done = response.getBoolean("done");
 	
-				// parse the node representation
-				JSONObject node = new JSONObject(response.getString("node"));
-				String type = node.getString("type");
 				if (!done) {
+					// parse the node representation
+					JSONObject node = response.getJSONObject("node");
+					String type = node.getString("type");
 					// continue with resolving
 					if (type.equals("NS")) {
 						// update the target ip/port
