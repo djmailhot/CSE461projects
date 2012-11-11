@@ -1,14 +1,30 @@
 package edu.uw.cs.cse461.Net.DDNS;
 
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.swing.Timer;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.uw.cs.cse461.HTTP.HTTPProviderInterface;
 import edu.uw.cs.cse461.Net.Base.NetBase;
 import edu.uw.cs.cse461.Net.Base.NetLoadable.NetLoadableService;
+import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSAuthorizationException;
+import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSNoSuchNameException;
 import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSRuntimeException;
+import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSTTLExpiredException;
+import edu.uw.cs.cse461.Net.DDNS.DDNSRRecord.ARecord;
+import edu.uw.cs.cse461.Net.DDNS.DDNSRRecord.NSRecord;
+import edu.uw.cs.cse461.Net.DDNS.DDNSRRecord.SOARecord;
+import edu.uw.cs.cse461.Net.DDNS.DDNSRRecord.CNAMERecord;
+import edu.uw.cs.cse461.Net.DDNS.DDNSRRecord.RRType;
 import edu.uw.cs.cse461.Net.RPC.RPCCallableMethod;
 import edu.uw.cs.cse461.Net.RPC.RPCService;
+import edu.uw.cs.cse461.util.ConfigManager;
 import edu.uw.cs.cse461.util.Log;
 
 /**
@@ -39,6 +55,11 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 	private RPCCallableMethod register;
 	private RPCCallableMethod unregister;
 
+	private DDNSNode treeRoot;
+	private int resolvelimit;
+	private int registerTimeout;
+	private Map<DDNSFullName, Timer> timers;
+	
 	/**
 	 * Called to end execution.  Specifically, need to terminate any threads we've created.
 	 */
@@ -80,6 +101,87 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 			e.printStackTrace();
 			throw new DDNSRuntimeException(msg);
 		}
+		
+		ConfigManager config = NetBase.theNetBase().config();
+		try {
+			// Gets the config resolve limits and timeout for registers
+			resolvelimit = config.getAsInt("ddns.resolvettl");
+			registerTimeout = 1000*config.getAsInt("ddnsresolver.cachettl"); // convert to milliseconds
+		} catch (NoSuchFieldException e) {
+			resolvelimit = 1000; // arbitrary default value
+			registerTimeout = 1000; // arbitrary default value
+		}
+		timers = new HashMap<DDNSFullName, Timer>(); // Creates a map of names to timers for easy reaccess.
+		
+		// Set up the tree that this Service is responsible for.
+		String[] nodesList = config.getAsStringVec("ddns.nodes");
+		if (nodesList == null) {
+			throw new DDNSRuntimeException("No nodes are present, please resolve this issue and restart");
+		}
+		for (int i = 0; i < nodesList.length; i++) {
+			String[] args = nodesList[i].split(":");
+			DDNSNode node = null;
+			if (args.length != 3 && args.length != 4) {
+				throw new DDNSRuntimeException("Entry: " + nodesList[i] + " had incorrect length of " + args.length);
+			}
+			DDNSFullName name = new DDNSFullName(args[1]);
+			
+			if (args.length == 3) {
+				if (args[0].equals("a")) {
+					DDNSRRecord cur = new ARecord(); // because shouldn't originally have port
+					node = new DDNSNode(cur, args[2], name);
+				} else if (args[0].equals("ns")) {
+					DDNSRRecord cur = new NSRecord();
+					node = new DDNSNode(cur, args[2], name);
+				} else if (args[0].equals("soa")) {
+					if (treeRoot != null) {
+						throw new DDNSRuntimeException("Config attempted to create multiple SOAs in this namespace");
+					}
+					DDNSRRecord cur = new SOARecord();	// TODO Do I want to set the port number and IP here?				
+					treeRoot = new DDNSNode(cur, args[2], name);
+				} else {
+					throw new DDNSRuntimeException("Entry: " + args[0] + " did not match any node type");
+				}
+			} else if (args.length == 4 && args[0].equals("cname")) {
+				DDNSRRecord cur = new CNAMERecord(args[2]);
+				node = new DDNSNode(cur, args[3], name);
+			} else {
+				throw new DDNSRuntimeException("Length 4 arg was not a cname");
+			}
+			// traverse the tree to find where this current node should be added.  Node will be null if we just created the root of the tree
+			if (node != null) {
+				if (treeRoot == null) {
+					throw new DDNSRuntimeException("Attempted to create a node before the first SOA node");
+				}			
+				if (name.equals(treeRoot.name)) {
+					Log.w(TAG, "Duplicate entries found for the root, ignoring second.");
+				} else {
+					if (name.isChildOf(treeRoot.name)) {
+						treeRoot.addChild(name, node);
+					} else if (name.isDescendantOf(treeRoot.name)) {
+						DDNSNode cur = treeRoot.getChild(treeRoot.name.nextAncestor(name)); 
+							// I think this gets the next generation to check
+						while (!cur.name.equals(name)) {
+							if (!name.isDescendantOf(cur.name)) {
+								Log.w(TAG, "should only end up in here if we try to access a ");
+								throw new DDNSNoSuchNameException(name);
+							}
+							DDNSFullName next = cur.name.nextAncestor(name);
+							if (next.equals(name)) {
+								if (!cur.children.containsKey(next)) {
+									cur.addChild(name, node);
+								} else {
+									Log.w(TAG, "Duplicate entries found for " + name + ", ignoring second");
+								}
+							}
+							cur = cur.getChild(next);						
+						}
+					} else {
+						throw new DDNSNoSuchNameException(name);
+					}					
+				}			
+			}
+		}
 	}
 	
 	//---------------------------------------------------------------------------
@@ -94,7 +196,72 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 	 * @throws DDNSException
 	 */
 	public JSONObject _rpcUnregister(JSONObject args) {
-		return null;
+		try {
+			DDNSFullName name = new DDNSFullName(args.getString("name"));
+			JSONObject node = new JSONObject();
+			JSONObject result = new JSONObject();
+			result.put("resulttype", "unregisterresult");
+			DDNSNode rec;
+			try {
+				rec = findName(name);
+			} catch (DDNSNoSuchNameException e) {
+				// We received a no such name exception, so we should pass that on.
+				node.put("resulttype", "ddnsexception");
+				node.put("exceptionnum", 1);
+				node.put("name", name);
+				node.put("message", e.getMessage());
+				return node;
+			} catch (DDNSTTLExpiredException e) {
+				// We timed out before resolving this name, so we should pass that on.
+				node.put("type", "ddnsexception");
+				node.put("exceptionnum", 5);
+				node.put("name", name);
+				node.put("message", "Registration took too long to complete");
+				return node;
+			}
+			try {
+				rec.updatePortIP(args.getString("password"), -1, null);
+				// Changes the port/ip to the null values
+				RRType type = rec.info.type();
+				if (type.equals(RRType.RRTYPE_CNAME)) {
+					CNAMERecord cname = (CNAMERecord)rec.info;
+					node.put("type", "CNAME");
+					node.put("alias", cname.alias());
+					result.put("node", node);
+					node.put("name", rec.name);
+					result.put("done", false);
+				} else if (type.equals(RRType.RRTYPE_NS)) {
+					NSRecord ns = (NSRecord)rec.info;
+					node.put("type", "NS");
+					node.put("ip", ns.ip());
+					node.put("port", ns.port());
+					node.put("name", rec.name);
+					result.put("done", false);
+					timers.get(name).stop(); // stops the relevant timer, because there isn't any point for it to run
+				} else {
+					result.put("done", true);
+					timers.get(name).stop(); // stops the relevant timer, because there isn't any point for it to run
+				}
+				return result;
+			} catch (DDNSAuthorizationException e) {
+				// If authorization failed, pass this along.
+				node.put("type", "ddnsexception");
+				node.put("exceptionnum", 3);
+				node.put("name", rec.name);
+				node.put("message", e.getMessage());
+				return node;
+			} catch (DDNSRuntimeException e) {
+				// If some other error occurred, pass this along
+				node.put("type", "ddnsexception");
+				node.put("exceptionnum", 4);
+				node.put("name", rec.name);
+				node.put("message", e.getMessage());
+				return node;
+			}
+		} catch (JSONException e) {
+			e.printStackTrace();
+			return null;
+		}
 	}
 	
 	/**
@@ -106,7 +273,119 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 	* @return
 	*/
 	public JSONObject _rpcRegister(JSONObject args) {
-		return null;
+		try {
+			DDNSFullName name = new DDNSFullName(args.getString("name"));
+			JSONObject node = new JSONObject();
+			JSONObject result = new JSONObject();
+			result.put("resulttype", "registerresult");
+			// result is what we will return if we actually obtain a result instead of an exception
+			// node is what we will return if a ddnsexception is generated, or the node wrapper
+			// for the result we obtain.
+			DDNSNode rec;
+			try {
+				rec = findName(name);
+			} catch (DDNSNoSuchNameException e) {
+				// We received a no such name exception, so we should pass that on.
+				node.put("resulttype", "ddnsexception");
+				node.put("exceptionnum", 1);
+				node.put("name", name);
+				node.put("message", e.getMessage());
+				return node;
+			} catch (DDNSTTLExpiredException e) {
+				// We timed out before resolving this name, so we should pass that on.
+				node.put("type", "ddnsexception");
+				node.put("exceptionnum", 5);
+				node.put("name", name);
+				node.put("message", "Registration took too long to complete");
+				return node;
+			}
+			RRType type = rec.info.type();
+			if (!type.equals(RRType.RRTYPE_CNAME)) {
+				if (timers.containsKey(rec.name)) {
+					timers.get(rec.name).restart(); // Does this to try and prevent the timer running out just before we synchronize things
+				} else {
+					TimeoutWatcher listener = new TimeoutWatcher(rec);
+					Timer timer = new Timer(registerTimeout, listener);
+					timer.setRepeats(false); // means that once this timer fires an event, it won't try again unless told to start again.
+					timers.put(rec.name, timer);
+					timer.start();
+				}
+				try {
+					rec.updatePortIP(args.getString("password"), args.getInt("port"), args.getString("ip"));
+					node.put("name", rec.name);
+					node.put("ip", args.getString("ip"));
+					node.put("port", args.getInt("port"));
+					// Does all the set up things for each individual type, similar to resolve seen below
+					if (type.equals(RRType.RRTYPE_A)) {
+						node.put("type", "A");
+						result.put("done", true);
+					} else if (type.equals(RRType.RRTYPE_SOA)) {
+						node.put("type", "SOA");
+						result.put("done", true);
+					} else {
+						node.put("type", "NS");
+						result.put("done", false);
+					}
+					result.put("node", node);
+					
+					timers.get(rec.name).restart(); // restarts to make sure the lifetime they get is as close to accurate as possible
+				} catch (DDNSAuthorizationException e) {
+					node.put("type", "ddnsexception");
+					node.put("exceptionnum", 3);
+					node.put("name", rec.name);
+					node.put("message", e.getMessage());
+					return node;
+				} catch (DDNSRuntimeException e) {
+					node.put("type", "ddnsexception");
+					node.put("exceptionnum", 4);
+					node.put("name", rec.name);
+					node.put("message", e.getMessage());
+					return node;
+				}			
+			} else {
+				CNAMERecord cname = (CNAMERecord)rec.info;
+				node.put("type", "CNAME");
+				node.put("alias", cname.alias());
+				result.put("node", node);
+				result.put("done", false);
+			}
+						
+			result.put("lifetime", registerTimeout); // the lifetime will always be the same
+			return result;
+		} catch (JSONException e) {
+			Log.e(TAG, "A JSONException occurred during resolution");
+			return null;
+		} 
+	}
+	
+	// Traverses the tree to find the specified name if it exists, or the first CNAME/NS node it encounters.  If it is nowhere in the tree or 
+	// if we run out of time, throw an exception.
+	private DDNSNode findName(DDNSFullName name) throws DDNSNoSuchNameException, DDNSTTLExpiredException {
+		if (name.equals(treeRoot.name)) {
+			return treeRoot;
+		} else {
+			int recursionCount = 2;
+			DDNSNode current = treeRoot.getChild(treeRoot.name.nextAncestor(name));
+			RRType curType = current.info.type();
+			while (!current.name.equals("name") && recursionCount < resolvelimit) {
+				// Will short circuit naturally if we encounter an NS or CNAME node first, or if the path
+				// does not actually exist.
+				if (curType.equals(RRType.RRTYPE_NS) || curType.equals(RRType.RRTYPE_CNAME)) {
+					// We can't do anything more with it if it is an NS/CNAME, so just return it and let someone else handle it
+					return current;
+				}
+				// Continues down the path if it exists
+				current = current.getChild(current.name.nextAncestor(name));
+				curType = current.info.type();
+				recursionCount++;
+			}
+			// We looped through too many times so the name may or may not exist but it has taken too long to find out
+			if (recursionCount == resolvelimit) {
+				throw new DDNSTTLExpiredException(name);
+			}
+			// We've exited the while loop without timing out, which means we've found the node we were looking for
+			return current;
+		}
 	}
 	
 	/**
@@ -116,7 +395,80 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 	 * @return
 	 */
 	public JSONObject _rpcResolve(JSONObject args) {
-		return null;
+		try {
+			DDNSFullName name = new DDNSFullName(args.getString("name"));
+			JSONObject node = new JSONObject();
+			JSONObject result = new JSONObject();
+			result.put("resulttype", "resolveresult");
+			// result is what we will return if we actually obtain a result instead of an exception
+			// node is what we will return if a ddnsexception is generated, or the node wrapper
+			// for the result we obtain.
+			DDNSNode rec;
+			try {
+				rec = findName(name);
+			} catch (DDNSNoSuchNameException e) {
+				// We received a no such name exception, so we should pass that on.
+				node.put("resulttype", "ddnsexception");
+				node.put("exceptionnum", 1);
+				node.put("name", name);
+				node.put("message", e.getMessage());
+				return node;
+			} catch (DDNSTTLExpiredException e) {
+				// We timed out before resolving this name, so we should pass that on.
+				node.put("type", "ddnsexception");
+				node.put("exceptionnum", 5);
+				node.put("name", name);
+				node.put("message", "Resolution took too long to complete");
+				return node;
+			}
+			// No errors occurred so handle each type of node after storing the name (which won't change between node types)
+			node.put("name", rec.name);
+			
+			
+			if (rec.info.type().equals(RRType.RRTYPE_CNAME)) {
+				// We have reached a CNAME so we don't know how to proceed and will leave that up to DDNSResolver
+				CNAMERecord cname = (CNAMERecord)rec.info;
+				node.put("type", "CNAME");
+				node.put("alias", cname.alias());
+				result.put("node", node);
+				result.put("done", false);
+			} else {
+				// All other types have a port and ip associated with them and are subclasses of A, so we only need to cast to A
+				ARecord intermed = (ARecord)rec.info;
+				synchronized(rec) { // hopefully will prevent race conditions
+					int port = intermed.port();
+					String ip = intermed.ip();
+					if (port == -1 || ip == null) {
+						// We have found a node without a recently updated address, we should pass this on.
+						node.put("resulttype", "ddnsexception");
+						node.put("exceptionnum", 2);
+						node.put("name", name);
+						node.put("message", "No address associated with this node");
+						return node;
+					}
+					node.put("ip", ip);
+					node.put("port", port);
+				}
+				
+				RRType type = intermed.type();
+				// And all other variation can be determined through merely the type itself without having to cast
+				if (type.equals(RRType.RRTYPE_A)) {
+					node.put("type", "A");
+					result.put("done", true);
+				} else if (type.equals(RRType.RRTYPE_SOA)) {
+					node.put("type", "SOA");
+					result.put("done", true);
+				} else {
+					node.put("type", "NS");
+					result.put("done", false);
+				}
+				result.put("node", node);
+			}
+			return result;
+		} catch (JSONException e) {
+			Log.e(TAG, "A JSONException occurred during resolution");
+			return null;
+		} 		
 	}
 	
 	// RPC callable routines
@@ -127,4 +479,73 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 		return "whatever you'd like";
 	}
 
+	// Private node class for storing the information in this namespace.
+	private class DDNSNode {
+		private String password;
+		private DDNSFullName name;
+		private Map<DDNSFullName, DDNSNode> children;
+		private DDNSRRecord info;
+		
+		public DDNSNode(DDNSRRecord data, String pwd, DDNSFullName name) {
+			children = new HashMap<DDNSFullName, DDNSNode>();
+			info = data;
+			password = pwd;
+			this.name = name;
+		}
+		
+		// Makes sure I don't set a child wrong
+		public void addChild(DDNSFullName name, DDNSNode child) throws DDNSRuntimeException {
+			RRType type = info.type();
+			if (name.isChildOf(this.name) && !type.equals(RRType.RRTYPE_NS) && !type.equals(RRType.RRTYPE_CNAME)) {
+				children.put(name, child);
+			} else {
+				throw new DDNSRuntimeException("Attempted to set a node as child where it cannot exist" + child.name);
+			}
+		}
+		
+		// Probably don't want use the Node class for password check?
+		public void updatePortIP (String pass, int port, String IP) throws DDNSAuthorizationException, DDNSRuntimeException {
+			if (!pass.equals(password)) {
+				throw new DDNSAuthorizationException(name);
+			} else {
+				synchronized(this) { // hopefully will prevent race conditions
+					RRType type = info.type();
+					if (type != RRType.RRTYPE_CNAME) {
+						ARecord me = (ARecord) info;
+						me.updateAddress(IP, port);
+					} else {
+						throw new DDNSRuntimeException("Attempted to set the address of an alias");  // TODO is this an actual error?
+					}
+				}
+			}
+		}
+		
+		public DDNSNode getChild(DDNSFullName name) throws DDNSNoSuchNameException{
+			if (children.containsKey(name)) {
+				return children.get(name);
+			} else {
+				throw new DDNSNoSuchNameException(name);
+			}
+		}
+	}
+	
+	private class TimeoutWatcher implements ActionListener {
+		private DDNSNode watched;
+		
+		public TimeoutWatcher(DDNSNode toWatch) {
+			watched = toWatch;
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent arg0) {
+			try {
+				watched.updatePortIP(watched.password, -1, null);
+			} catch (DDNSAuthorizationException e) {
+				Log.e(TAG, "That password used should not have failed");
+			} catch (DDNSRuntimeException e) {
+				Log.e(TAG, "Why would you do this for a CNAME?!?!");
+			}
+		}
+		
+	}
 }
