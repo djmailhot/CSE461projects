@@ -1,11 +1,7 @@
 package edu.uw.cs.cse461.Net.DDNS;
 
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.HashMap;
 import java.util.Map;
-
-import javax.swing.Timer;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -58,7 +54,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 	private DDNSNode treeRoot;
 	private int resolvelimit;
 	private int registerTimeout;
-	private Map<DDNSFullName, Timer> timers;
+	private Map<DDNSFullName, Long> timers;
 	
 	/**
 	 * Called to end execution.  Specifically, need to terminate any threads we've created.
@@ -111,7 +107,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 			resolvelimit = 1000; // arbitrary default value
 			registerTimeout = 1000; // arbitrary default value
 		}
-		timers = new HashMap<DDNSFullName, Timer>(); // Creates a map of names to timers for easy reaccess.
+		timers = new HashMap<DDNSFullName, Long>(); // Creates a map of names to timers for easy reaccess.
 		
 		// Set up the tree that this Service is responsible for.
 		String[] nodesList = config.getAsStringVec("ddns.nodes");
@@ -137,7 +133,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 					if (treeRoot != null) {
 						throw new DDNSRuntimeException("Config attempted to create multiple SOAs in this namespace");
 					}
-					DDNSRRecord cur = new SOARecord();	// TODO Do I want to set the port number and IP here?				
+					DDNSRRecord cur = new SOARecord();				
 					treeRoot = new DDNSNode(cur, args[2], name);
 				} else {
 					throw new DDNSRuntimeException("Entry: " + args[0] + " did not match any node type");
@@ -195,7 +191,8 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 	 * @throws JSONException
 	 * @throws DDNSException
 	 */
-	public JSONObject _rpcUnregister(JSONObject args) {
+	// Synchronized to prevent race conditions in register/unregister
+	public synchronized JSONObject _rpcUnregister(JSONObject args) {
 		try {
 			DDNSFullName name = new DDNSFullName(args.getString("name"));
 			JSONObject node = new JSONObject();
@@ -220,29 +217,31 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 				return node;
 			}
 			try {
-				rec.updatePortIP(args.getString("password"), -1, null);
-				// Changes the port/ip to the null values
-				RRType type = rec.info.type();
-				if (type.equals(RRType.RRTYPE_CNAME)) {
-					CNAMERecord cname = (CNAMERecord)rec.info;
-					node.put("type", "CNAME");
-					node.put("alias", cname.alias());
-					result.put("node", node);
-					node.put("name", rec.name);
-					result.put("done", false);
-				} else if (type.equals(RRType.RRTYPE_NS)) {
-					NSRecord ns = (NSRecord)rec.info;
-					node.put("type", "NS");
-					node.put("ip", ns.ip());
-					node.put("port", ns.port());
-					node.put("name", rec.name);
-					result.put("done", false);
-					timers.get(name).stop(); // stops the relevant timer, because there isn't any point for it to run
-				} else {
-					result.put("done", true);
-					timers.get(name).stop(); // stops the relevant timer, because there isn't any point for it to run
+				synchronized(rec) { // ought to prevent race conditions between unregister and resolve
+					rec.updatePortIP(args.getString("password"), -1, null);
+					// Changes the port/ip to the null values
+					RRType type = rec.info.type();
+					if (type.equals(RRType.RRTYPE_CNAME)) {
+						CNAMERecord cname = (CNAMERecord)rec.info;
+						node.put("type", "CNAME");
+						node.put("alias", cname.alias());
+						result.put("node", node);
+						node.put("name", rec.name);
+						result.put("done", false);
+					} else if (type.equals(RRType.RRTYPE_NS)) {
+						NSRecord ns = (NSRecord)rec.info;
+						node.put("type", "NS");
+						node.put("ip", ns.ip());
+						node.put("port", ns.port());
+						node.put("name", rec.name);
+						result.put("done", false);
+						timers.remove(name); // removes the entry from the map of names to their last registration time, as we don't need that info
+					} else {
+						result.put("done", true);
+						timers.remove(name); // removes the entry from the map of names to their last registration time, as we don't need that info
+					}
+					return result;
 				}
-				return result;
 			} catch (DDNSAuthorizationException e) {
 				// If authorization failed, pass this along.
 				node.put("type", "ddnsexception");
@@ -272,7 +271,8 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 	* @param args
 	* @return
 	*/
-	public JSONObject _rpcRegister(JSONObject args) {
+	// Synchronized to prevent race conditions between register and unregister
+	public synchronized JSONObject _rpcRegister(JSONObject args) {
 		try {
 			DDNSFullName name = new DDNSFullName(args.getString("name"));
 			JSONObject node = new JSONObject();
@@ -299,59 +299,59 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 				node.put("message", "Registration took too long to complete");
 				return node;
 			}
-			RRType type = rec.info.type();
-			if (!type.equals(RRType.RRTYPE_CNAME)) {
-				if (timers.containsKey(rec.name)) {
-					timers.get(rec.name).restart(); // Does this to try and prevent the timer running out just before we synchronize things
-				} else {
-					TimeoutWatcher listener = new TimeoutWatcher(rec);
-					Timer timer = new Timer(registerTimeout, listener);
-					timer.setRepeats(false); // means that once this timer fires an event, it won't try again unless told to start again.
-					timers.put(rec.name, timer);
-					timer.start();
-				}
-				try {
-					rec.updatePortIP(args.getString("password"), args.getInt("port"), args.getString("ip"));
-					node.put("name", rec.name);
-					node.put("ip", args.getString("ip"));
-					node.put("port", args.getInt("port"));
-					// Does all the set up things for each individual type, similar to resolve seen below
-					if (type.equals(RRType.RRTYPE_A)) {
-						node.put("type", "A");
-						result.put("done", true);
-					} else if (type.equals(RRType.RRTYPE_SOA)) {
-						node.put("type", "SOA");
-						result.put("done", true);
+			synchronized(rec) { // Ought to prevent race conditions between register and resolve
+				RRType type = rec.info.type();
+				if (!type.equals(RRType.RRTYPE_CNAME)) {
+					if (timers.containsKey(rec.name)) {
+						timers.put(rec.name, System.currentTimeMillis());
+						//timers.get(rec.name).restart(); // Does this to try and prevent the timer running out just before we synchronize things
 					} else {
-						node.put("type", "NS");
-						result.put("done", false);
+						timers.put(rec.name, System.currentTimeMillis());
 					}
-					result.put("node", node);
+					try {
+						rec.updatePortIP(args.getString("password"), args.getInt("port"), args.getString("ip"));
+						node.put("name", rec.name);
+						node.put("ip", args.getString("ip"));
+						node.put("port", args.getInt("port"));
+						// Does all the set up things for each individual type, similar to resolve seen below
+						if (type.equals(RRType.RRTYPE_A)) {
+							node.put("type", "A");
+							result.put("done", true);
+						} else if (type.equals(RRType.RRTYPE_SOA)) {
+							node.put("type", "SOA");
+							result.put("done", true);
+						} else {
+							node.put("type", "NS");
+							result.put("done", false);
+						}
+						result.put("node", node);
 					
-					timers.get(rec.name).restart(); // restarts to make sure the lifetime they get is as close to accurate as possible
-				} catch (DDNSAuthorizationException e) {
-					node.put("type", "ddnsexception");
-					node.put("exceptionnum", 3);
-					node.put("name", rec.name);
-					node.put("message", e.getMessage());
-					return node;
-				} catch (DDNSRuntimeException e) {
-					node.put("type", "ddnsexception");
-					node.put("exceptionnum", 4);
-					node.put("name", rec.name);
-					node.put("message", e.getMessage());
-					return node;
-				}			
-			} else {
-				CNAMERecord cname = (CNAMERecord)rec.info;
-				node.put("type", "CNAME");
-				node.put("alias", cname.alias());
-				result.put("node", node);
-				result.put("done", false);
-			}
+						timers.put(rec.name, System.currentTimeMillis()); 
+						// alters the timestamp so that the lifetime they get is as close to accurate as possible
+					} catch (DDNSAuthorizationException e) {
+						node.put("type", "ddnsexception");
+						node.put("exceptionnum", 3);
+						node.put("name", rec.name);
+						node.put("message", e.getMessage());
+						return node;
+					} catch (DDNSRuntimeException e) {
+						node.put("type", "ddnsexception");
+						node.put("exceptionnum", 4);
+						node.put("name", rec.name);
+						node.put("message", e.getMessage());
+						return node;
+					}			
+				} else {
+					CNAMERecord cname = (CNAMERecord)rec.info;
+					node.put("type", "CNAME");
+					node.put("alias", cname.alias());
+					result.put("node", node);
+					result.put("done", false);
+				}
 						
-			result.put("lifetime", registerTimeout); // the lifetime will always be the same
-			return result;
+				result.put("lifetime", registerTimeout); // the lifetime will always be the same
+				return result;
+			}
 		} catch (JSONException e) {
 			Log.e(TAG, "A JSONException occurred during resolution");
 			return null;
@@ -435,19 +435,20 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 			} else {
 				// All other types have a port and ip associated with them and are subclasses of A, so we only need to cast to A
 				ARecord intermed = (ARecord)rec.info;
-				synchronized(rec) { // hopefully will prevent race conditions
-					int port = intermed.port();
-					String ip = intermed.ip();
-					if (port == -1 || ip == null) {
-						// We have found a node without a recently updated address, we should pass this on.
+				synchronized(rec) { 
+					// ought to prevent some race conditions between looking at a node's timestamp and that node becoming unregistered
+					// although it will not be possible to prevent all (case where unregister occurs shortly after resolve has returned, etc.)
+					if (!timers.containsKey(rec.name) || timers.get(rec.name) + registerTimeout < System.currentTimeMillis()) {
+						// If there is no registration time stamp or the timestamp is out of date, then we have found a node 
+						// without a recently updated address and we should pass this on.
 						node.put("resulttype", "ddnsexception");
 						node.put("exceptionnum", 2);
 						node.put("name", name);
 						node.put("message", "No address associated with this node");
 						return node;
 					}
-					node.put("ip", ip);
-					node.put("port", port);
+					node.put("ip", intermed.ip());
+					node.put("port", intermed.port());
 				}
 				
 				RRType type = intermed.type();
@@ -508,14 +509,13 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 			if (!pass.equals(password)) {
 				throw new DDNSAuthorizationException(name);
 			} else {
-				synchronized(this) { // hopefully will prevent race conditions
-					RRType type = info.type();
-					if (type != RRType.RRTYPE_CNAME) {
-						ARecord me = (ARecord) info;
-						me.updateAddress(IP, port);
-					} else {
-						throw new DDNSRuntimeException("Attempted to set the address of an alias");  // TODO is this an actual error?
-					}
+				// Race conditions should be handled in other methods, so I shouldn't have to worry about it.
+				RRType type = info.type();
+				if (type != RRType.RRTYPE_CNAME) {
+					ARecord me = (ARecord) info;
+					me.updateAddress(IP, port);
+				} else {
+					throw new DDNSRuntimeException("Attempted to set the address of an alias");  // I think this is an actual error . . .
 				}
 			}
 		}
@@ -527,25 +527,5 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 				throw new DDNSNoSuchNameException(name);
 			}
 		}
-	}
-	
-	private class TimeoutWatcher implements ActionListener {
-		private DDNSNode watched;
-		
-		public TimeoutWatcher(DDNSNode toWatch) {
-			watched = toWatch;
-		}
-
-		@Override
-		public void actionPerformed(ActionEvent arg0) {
-			try {
-				watched.updatePortIP(watched.password, -1, null);
-			} catch (DDNSAuthorizationException e) {
-				Log.e(TAG, "That password used should not have failed");
-			} catch (DDNSRuntimeException e) {
-				Log.e(TAG, "Why would you do this for a CNAME?!?!");
-			}
-		}
-		
 	}
 }
