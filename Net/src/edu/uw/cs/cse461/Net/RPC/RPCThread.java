@@ -147,6 +147,7 @@ public class RPCThread implements DataThreadInterface {
 							} catch (Exception e) {
 								response.put("type", "ERROR");
 								response.put("message", "The method called caused an exception");
+								Log.d(TAG, e.getMessage());
 								response.put("callargs", request);
 							}
 							handler.sendMessage(response);

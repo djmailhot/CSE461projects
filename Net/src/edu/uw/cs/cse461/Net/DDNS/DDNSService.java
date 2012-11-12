@@ -244,14 +244,14 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 				}
 			} catch (DDNSAuthorizationException e) {
 				// If authorization failed, pass this along.
-				node.put("type", "ddnsexception");
+				node.put("resulttype", "ddnsexception");
 				node.put("exceptionnum", 3);
 				node.put("name", rec.name);
 				node.put("message", e.getMessage());
 				return node;
 			} catch (DDNSRuntimeException e) {
 				// If some other error occurred, pass this along
-				node.put("type", "ddnsexception");
+				node.put("resulttype", "ddnsexception");
 				node.put("exceptionnum", 4);
 				node.put("name", rec.name);
 				node.put("message", e.getMessage());
@@ -294,7 +294,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 				return node;
 			} catch (DDNSTTLExpiredException e) {
 				// We timed out before resolving this name, so we should pass that on.
-				node.put("type", "ddnsexception");
+				node.put("resulttype", "ddnsexception");
 				node.put("exceptionnum", 5);
 				node.put("name", name);
 				node.put("message", "Registration took too long to complete");
@@ -330,13 +330,13 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 						timers.put(rec.name, System.currentTimeMillis()); 
 						// alters the timestamp so that the lifetime they get is as close to accurate as possible
 					} catch (DDNSAuthorizationException e) {
-						node.put("type", "ddnsexception");
+						node.put("resulttype", "ddnsexception");
 						node.put("exceptionnum", 3);
 						node.put("name", rec.name);
 						node.put("message", e.getMessage());
 						return node;
 					} catch (DDNSRuntimeException e) {
-						node.put("type", "ddnsexception");
+						node.put("resulttype", "ddnsexception");
 						node.put("exceptionnum", 4);
 						node.put("name", rec.name);
 						node.put("message", e.getMessage());
@@ -416,7 +416,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 				return node;
 			} catch (DDNSTTLExpiredException e) {
 				// We timed out before resolving this name, so we should pass that on.
-				node.put("type", "ddnsexception");
+				node.put("resulttype", "ddnsexception");
 				node.put("exceptionnum", 5);
 				node.put("name", name);
 				node.put("message", "Resolution took too long to complete");

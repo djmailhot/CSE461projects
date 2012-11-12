@@ -175,7 +175,7 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 
 		byte[] header = readFromStream(inputStream, MESSAGE_HEADER_SIZE);
 		int payloadLength = byteToInt(header);
-		
+		Log.d(TAG, Arrays.toString(header));
 		payload = readFromStream(inputStream, payloadLength);
 		
 		return payload;
