@@ -311,7 +311,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 					}
 					try {
 						rec.updatePortIP(args.getString("password"), args.getInt("port"), args.getString("ip"));
-						node.put("name", rec.name);
+						node.put("name", rec.name.toString());
 						node.put("ip", args.getString("ip"));
 						node.put("port", args.getInt("port"));
 						// Does all the set up things for each individual type, similar to resolve seen below
@@ -368,7 +368,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 			int recursionCount = 2;
 			DDNSNode current = treeRoot.getChild(treeRoot.name.nextAncestor(name));
 			RRType curType = current.info.type();
-			while (!current.name.equals("name") && recursionCount < resolvelimit) {
+			while (!current.name.equals(name) && recursionCount < resolvelimit) {
 				// Will short circuit naturally if we encounter an NS or CNAME node first, or if the path
 				// does not actually exist.
 				if (curType.equals(RRType.RRTYPE_NS) || curType.equals(RRType.RRTYPE_CNAME)) {
