@@ -150,9 +150,9 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		String targetIp = rootRecord.ip();
 		int targetPort = rootRecord.port();
 		
-		
 		try {
 			do {
+				Log.d(TAG, "rpc "+method+" request with args "+args);
 				// invoke the name resolver
 				Log.d(TAG, "rpc "+method+" request with args "+args);
 				Log.d(TAG, "port: " + targetPort + " ip: " + targetIp);
