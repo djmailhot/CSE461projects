@@ -2,6 +2,8 @@ package edu.uw.cs.cse461.Net.DDNS;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.Stack;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -65,7 +67,33 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 	}
 	
 	@Override
-	public String httpServe(String[] uriArray) { return toString();	}
+	public String httpServe(String[] uriArray) {
+		String ans = "";
+		ans += treeRoot.name.toString() + " " + treeRoot.info.toString() + " with children: \n";
+		Set<DDNSFullName> children = treeRoot.children.keySet();
+		Stack<DDNSNode> nodes = new Stack<DDNSNode>();
+		for (DDNSFullName name : children) {
+			try {
+				nodes.push(treeRoot.getChild(name));
+			} catch (DDNSNoSuchNameException e) {
+				Log.e(TAG, "This error should never be reached, obviously your method of getting children sucks");
+			}
+		}
+		// Depth first traversal of the entire structure
+		while (!nodes.isEmpty()) {
+			DDNSNode current = nodes.pop();
+			ans += current.name.toString() + " child of " + current.name.parent() + " has data " + current.info.toString() + "\n";
+			children = current.children.keySet();
+			for (DDNSFullName name : children) {
+				try {
+					nodes.push(current.getChild(name));
+				} catch (DDNSNoSuchNameException e) {
+					Log.e(TAG, "Again, this error should never be reached");
+				}
+			}
+		}
+		return ans;
+	}
 	
 	/**
 	 * Constructor.  Registers the system RPCServerSocket with the parent as
