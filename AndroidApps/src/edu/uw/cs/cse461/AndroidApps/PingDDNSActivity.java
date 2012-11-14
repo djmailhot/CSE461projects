@@ -1,7 +1,5 @@
 package edu.uw.cs.cse461.AndroidApps;
 
-import org.json.JSONObject;
-
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
@@ -10,30 +8,28 @@ import android.widget.TextView;
 import android.widget.Toast;
 import edu.uw.cs.cse461.Net.Base.NetBase;
 import edu.uw.cs.cse461.Net.Base.NetLoadableAndroidApp;
-import edu.uw.cs.cse461.Net.RPC.RPCCall;
+import edu.uw.cs.cse461.Net.DDNS.DDNSResolverService;
 import edu.uw.cs.cse461.util.BackgroundToast;
 import edu.uw.cs.cse461.util.ConfigManager;
 import edu.uw.cs.cse461.util.ContextManager;
 import edu.uw.cs.cse461.util.IPFinder;
 import edu.uw.cs.cse461.util.SampledStatistic.ElapsedTime;
 
-public class PingRPCActivity extends NetLoadableAndroidApp {
-	private static final String TAG="PingRPCActivity";
+public class PingDDNSActivity extends NetLoadableAndroidApp {
+	private static final String TAG="PingDDNSActivity";
     public static final String PREFS_NAME = "CSE461";
 	
 	private String mMyIP;
-	private String mServerIP;
-	private String mServerPort;
+	private String mServer;
 	private int timeout;
-	private TextView ipBox;
-	private TextView portBox;
+	private TextView serverBox;
 	
 	/**
 	 * A public constructor with no arguments is required to function correctly
 	 * as a NetLoadableAndroidApp. 
 	 */
-	public PingRPCActivity() {
-		super("PingRPC", true);
+	public PingDDNSActivity() {
+		super("PingDDNS", true);
 	}
 	
     /** Called when the activity is first created. */
@@ -61,28 +57,21 @@ public class PingRPCActivity extends NetLoadableAndroidApp {
 
 		// Set initial values for the server name and port text boxes
 		// See if there are values in the config file...
-		String defaultServer = config.getProperty("echorpc.server", "cse461.cs.washington.edu");
-		String defaultPort = config.getProperty("echorpc.port", "46120");
+		String defaultServer = config.getProperty("echoddns.server", "cse461.cs.washington.edu");
 		int defaultTimeout = Integer.parseInt(config.getProperty("ping.sockettimeout","500"));
 
 		
 		// If we saved values the user provided during the last run of this program, use those
         SharedPreferences settings = getSharedPreferences(PREFS_NAME,0);
-        mServerIP = settings.getString("serverip", defaultServer );
-        mServerPort = settings.getString("serverport", defaultPort);
+        mServer = settings.getString("server", defaultServer );
         timeout = Integer.parseInt(settings.getString("clienttimeout", Integer.toString(defaultTimeout)));
         
 
         // Now set the text in the UI elements
-    	ipBox = ((TextView)findViewById(R.id.pingtcpmessagehandler_iptext));
-    	if ( ipBox != null ) ipBox.setText(mServerIP);
+    	serverBox = ((TextView)findViewById(R.id.pingtcpmessagehandler_iptext));
+    	if ( serverBox != null ) serverBox.setText(mServer);
     	
-    	// LOCATE THE NEW UI COMPONENT YOU ADDED AND SET ITS INITIAL VALUE
-    	portBox = ((TextView)findViewById(R.id.pingtcpmessagehandler_porttext));
-    	if ( portBox != null ) portBox.setText(mServerPort);
-    	else Log.w(TAG,"Couldn't find portBox");
-        
-    	
+    	    	
     	// Now determine our IP address and display it.
     	
     	// (You may) Have to use a background thread in Android 4.0 and beyond -- can't
@@ -116,8 +105,7 @@ public class PingRPCActivity extends NetLoadableAndroidApp {
     	
     	SharedPreferences settings = getSharedPreferences(PREFS_NAME, 0);
     	SharedPreferences.Editor editor = settings.edit();
-    	editor.putString("serverip", mServerIP);
-    	editor.putString("serverport", mServerPort);
+    	editor.putString("server", mServer);
     	editor.putString("clienttimeout", Integer.toString(timeout));
     	editor.commit();
     }
@@ -135,14 +123,12 @@ public class PingRPCActivity extends NetLoadableAndroidApp {
     	Log.d(TAG,"reached onGoClicked()");
     	
     	//update IP, port to the latest from the UI
-    	if ( ipBox != null ) mServerIP = ipBox.getText().toString();
-    	if ( portBox != null ) mServerPort = portBox.getText().toString();
+    	if ( serverBox != null ) mServer = serverBox.getText().toString();
     	
     	//save them to our preferences
     	SharedPreferences settings = getSharedPreferences(PREFS_NAME, 0);
     	SharedPreferences.Editor editor = settings.edit();
-    	editor.putString("serverip", mServerIP);
-    	editor.putString("serverport", mServerPort);
+    	editor.putString("server", mServer);
     	editor.commit();
 
     	// Starting Android 4.0, can't use the main thread to touch the network.
@@ -152,15 +138,16 @@ public class PingRPCActivity extends NetLoadableAndroidApp {
     			try {
     				runOnUiThread(new Runnable() {
     					public void run() {
-    						ElapsedTime.start("PingRPC");
+    						ElapsedTime.start("PingDDNS");
     						
     						try {
-								RPCCall.invoke(mServerIP, Integer.parseInt(mServerPort), "echorpc", "echo", new JSONObject().put("msg", ""));
+    							DDNSResolverService resolver = (DDNSResolverService)NetBase.theNetBase().getService("ddnsresolver");
+    							resolver.resolve(mServer);
 							} catch (Exception e) {
 								Log.e(TAG, "Exception: " + e.getMessage());
 							}
     						// Calculate the ping time and display it on the UI
-    						double realTime = ElapsedTime.stop("PingRPC");
+    						double realTime = ElapsedTime.stop("PingDDNS");
     						String time = Double.toString(realTime);
     						if(time.length()>5){
     							time = time.substring(0, 5);

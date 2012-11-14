@@ -27,6 +27,14 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 	 */
 	@Override
 	public void shutdown() {
+		try {
+			this.unregister(new DDNSFullName(NetBase.theNetBase().hostname()));
+		} catch (DDNSException e) {
+			Log.e(TAG, e.getMessage());
+			e.printStackTrace();			
+		} catch (JSONException e) {
+			Log.e(TAG, "unregister failed. Maybe.");
+		}
 		super.shutdown();
 	}
 		

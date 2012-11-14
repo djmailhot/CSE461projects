@@ -46,6 +46,10 @@
             android:name=".PingRPCActivity"
             android:label="PingRPC" >
         </activity>
+        <activity
+            android:name=".PingDDNSActivity"
+            android:label="PingDDNS">
+        </activity>
        	<activity
             android:name="edu.uw.cs.cse461.AndroidApps.SNetActivity"
             android:label="@string/title_activity_snet" >
