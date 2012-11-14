@@ -1,5 +1,9 @@
 package edu.uw.cs.cse461.AndroidApps;
 
+import java.util.List;
+
+import org.json.JSONObject;
+
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
@@ -8,7 +12,13 @@ import android.widget.TextView;
 import android.widget.Toast;
 import edu.uw.cs.cse461.Net.Base.NetBase;
 import edu.uw.cs.cse461.Net.Base.NetLoadableAndroidApp;
+import edu.uw.cs.cse461.Net.DDNS.DDNSException;
+import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSAuthorizationException;
+import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSRuntimeException;
+import edu.uw.cs.cse461.Net.DDNS.DDNSFullName;
+import edu.uw.cs.cse461.Net.DDNS.DDNSRRecord.ARecord;
 import edu.uw.cs.cse461.Net.DDNS.DDNSResolverService;
+import edu.uw.cs.cse461.Net.RPC.RPCCall;
 import edu.uw.cs.cse461.util.BackgroundToast;
 import edu.uw.cs.cse461.util.ConfigManager;
 import edu.uw.cs.cse461.util.ContextManager;
@@ -18,6 +28,8 @@ import edu.uw.cs.cse461.util.SampledStatistic.ElapsedTime;
 public class PingDDNSActivity extends NetLoadableAndroidApp {
 	private static final String TAG="PingDDNSActivity";
     public static final String PREFS_NAME = "CSE461";
+    
+    private DDNSResolverService resolver;
 	
 	private String mMyIP;
 	private String mServer;
@@ -60,7 +72,7 @@ public class PingDDNSActivity extends NetLoadableAndroidApp {
 		String defaultServer = config.getProperty("echoddns.server", "cse461.cs.washington.edu");
 		int defaultTimeout = Integer.parseInt(config.getProperty("ping.sockettimeout","500"));
 
-		
+        
 		// If we saved values the user provided during the last run of this program, use those
         SharedPreferences settings = getSharedPreferences(PREFS_NAME,0);
         mServer = settings.getString("server", defaultServer );
@@ -138,11 +150,29 @@ public class PingDDNSActivity extends NetLoadableAndroidApp {
     			try {
     				runOnUiThread(new Runnable() {
     					public void run() {
+    						ConfigManager config = NetBase.theNetBase().config();
+    						// TODO remove this testing thing
+    						List<String> services = NetBase.theNetBase().loadedServiceNames();
+    						resolver = (DDNSResolverService)NetBase.theNetBase().getService("ddnsresolver");
+    						DDNSFullName name = new DDNSFullName(config.getProperty("net.hostname", "default.12au.cse461."));
+    				        
     						ElapsedTime.start("PingDDNS");
     						
     						try {
-    							DDNSResolverService resolver = (DDNSResolverService)NetBase.theNetBase().getService("ddnsresolver");
-    							resolver.resolve(mServer);
+    				        	int port = Integer.parseInt(config.getProperty("echorpc.port", "46120"));
+    							resolver.register(name, port); // registers myself
+    						} catch (DDNSRuntimeException e) {
+    							Log.e(TAG, "DDNS Runtime Exception: " + e.getMessage());
+    						} catch (DDNSAuthorizationException e1) {
+    							Log.e(TAG, "Authorization exception: " + e1.getMessage());
+    						} catch (DDNSException e) {
+    							Log.e(TAG, "We encountered a DDNSException we were not expecting with message " + e.getMessage());
+    						}
+    						
+    						
+    						try {
+    							ARecord address = resolver.resolve(mServer);
+								RPCCall.invoke(address.ip(), address.port(), "echorpc", "echo", new JSONObject().put("msg", ""));
 							} catch (Exception e) {
 								Log.e(TAG, "Exception: " + e.getMessage());
 							}
