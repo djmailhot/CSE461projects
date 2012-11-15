@@ -22,14 +22,16 @@ import edu.uw.cs.cse461.util.Log;
 
 public class DDNSResolverService extends NetLoadableService implements HTTPProviderInterface, DDNSResolverServiceInterface {
 	private static final String TAG="DDNSResolverService";
+	private static final Long RESOLVER_CACHE_TIMEOUT = (long)30000; // timeout in ms
 	private static final int REREGISTER_TIMEOUT_BUFFER = 10000; // in ms.  10 seconds of buffer time
 	
 	private final ARecord rootRecord;
 	private final ARecord hostRecord;
 	private final String ddnsPassword;
 	private final int resolveTTL;
+	private final ResolverCache resolverCache;
 	private final RegistrationScheduler registrationScheduler;
-	
+
 	/**
 	 * Called to end execution.  Specifically, need to terminate any threads we've created.
 	 */
@@ -89,6 +91,9 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 
 		DDNSFullNameInterface fullName = new DDNSFullName(NetBase.theNetBase().hostname()); 
 		register(fullName, this.hostRecord.port());
+
+
+		resolverCache = new ResolverCache(RESOLVER_CACHE_TIMEOUT);
 	}
 
 	/**
@@ -184,8 +189,15 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 				// invoke the name resolver
 				Log.d(TAG, "rpc "+method+" request with args "+args);
 				Log.d(TAG, "port: " + targetPort + " ip: " + targetIp);
-				
-				response = RPCCall.invoke(targetIp, targetPort, "ddns", method, args);
+
+				String targetName = args.getString("name");
+				response = resolverCache.get(targetName);
+
+				// if the cache has no entry
+				if (response == null) {
+					response = RPCCall.invoke(targetIp, targetPort, "ddns", method, args);
+					resolverCache.put(targetName, response);
+				}
 	
 	            Log.d(TAG, "response payload of "+response);
 				// if the response is an exception, then throw the exception
@@ -312,6 +324,56 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		 */
 		private synchronized void unscheduleAll() {
 			reregisterTimer.cancel();
+		}
+	}
+
+
+	/*
+	 * Cache for records recently resolved
+	 */
+	private class ResolverCache {
+		private final Map<String, JSONObject> records;
+		private final Map<String, Long> timestamps;
+		private final Long timeout;
+
+		public ResolverCache(Long timeout) {
+			this.timeout = timeout;
+			this.records = new HashMap<String, JSONObject>();
+			this.timestamps = new HashMap<String, Long>();
+		}
+
+		public JSONObject get(String key) {
+			Long currTime = System.currentTimeMillis();
+			Long cacheTime;
+			JSONObject record = null;
+			synchronized(this) {
+				// If we are not in the cache
+				if (!timestamps.containsKey(key) || !records.containsKey(key)) {
+					return null;
+				}
+				cacheTime = timestamps.get(key);
+				record = records.get(key);
+			}
+
+			// If the record is stale
+			if (currTime > cacheTime + timeout) {
+				remove(key);
+				return null;
+			}
+			return record;
+		}
+
+		public void put(String key, JSONObject value) {
+			Long currTime = System.currentTimeMillis();
+			synchronized(this) {
+				records.put(key, value);
+				timestamps.put(key, currTime);
+			}
+		}
+
+		private synchronized void remove(String key) {
+			records.remove(key);
+			timestamps.remove(key);
 		}
 	}
 
