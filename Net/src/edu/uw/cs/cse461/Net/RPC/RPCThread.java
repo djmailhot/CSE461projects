@@ -44,7 +44,7 @@ public class RPCThread implements DataThreadInterface {
 	public void run() {
 		try {
 			socket = new ServerSocket(portNum);
-			Log.d(TAG, "Server set up at port: " + portNum);
+			Log.v(TAG, "Server set up at port: " + portNum);
 		} catch (IOException e) {
 			Log.e(TAG, "Failure to create ServerSocket");
 			return;
@@ -56,7 +56,7 @@ public class RPCThread implements DataThreadInterface {
 			e.printStackTrace();
 			return;
 		}
-		Log.d("RPCThread", "Server ready to accept clients");
+		Log.v("RPCThread", "Server ready to accept clients");
 		//loop until time to close
 		boolean error = false;
 		boolean timeout = false;
@@ -71,7 +71,7 @@ public class RPCThread implements DataThreadInterface {
 				s.setSoTimeout(_timeOut);
 				handler = new TCPMessageHandler(s);
 				handler.setMaxReadLength(Integer.MAX_VALUE);
-				Log.d(TAG, "run: TCP connection established.");
+				Log.v(TAG, "run: TCP connection established.");
 			} catch (SocketTimeoutException e) {
 				timeout = true;
 			} catch (IOException e) {
@@ -81,7 +81,7 @@ public class RPCThread implements DataThreadInterface {
 			if (!error && !timeout) {
 				String host = s.getInetAddress().getHostAddress();
 				try {
-					Log.d(TAG, "reading from client");
+					Log.v(TAG, "reading from client");
 					JSONObject handshake = handler.readMessageAsJSONObject();
 					if (handshake.has("type")) {
 						if (handshake.getString("type").equals("control")) {
@@ -92,7 +92,7 @@ public class RPCThread implements DataThreadInterface {
 							successMsg.put("callid", handshake.getInt("id"));
 							successMsg.put("type", "OK");
 							handler.sendMessage(successMsg);
-							Log.d(TAG, "received handshake");
+							Log.v(TAG, "received handshake");
 						} else {
 							JSONObject errorMsg = new JSONObject();
 							errorMsg.put("id", id);
@@ -102,7 +102,7 @@ public class RPCThread implements DataThreadInterface {
 							errorMsg.put("type", "ERROR");
 							errorMsg.put("msg", "Error establishing connection");
 							handler.sendMessage(errorMsg);
-							Log.d(TAG, "received improper handshake");
+							Log.w(TAG, "received improper handshake");
 							s.close();
 							handler.discard();
 							break;
@@ -116,12 +116,12 @@ public class RPCThread implements DataThreadInterface {
 						errorMsg.put("type", "ERROR");
 						errorMsg.put("msg", "Error establishing connection");
 						handler.sendMessage(errorMsg);
-						Log.d(TAG, "received potential handshake that was not formulated correctly");
+						Log.w(TAG, "received potential handshake that was not formulated correctly");
 						s.close();
 						handler.discard();
 						break;
 					}
-					Log.d(TAG, "reading request from client");
+					Log.v(TAG, "reading request from client");
 					JSONObject request = handler.readMessageAsJSONObject();
 					if (request.has("type")) {
 						if (request.getString("type").equals("invoke")) {
@@ -134,7 +134,7 @@ public class RPCThread implements DataThreadInterface {
 							response.put("host", host);
 							response.put("callid", request.getInt("id"));
 							try {
-								Log.d(TAG, "Evaluating request");
+								Log.v(TAG, "Evaluating request");
 								JSONObject result = parent.accessMethod(app, method, args);
 								if (result == null) {
 									response.put("type", "ERROR");
@@ -147,7 +147,7 @@ public class RPCThread implements DataThreadInterface {
 							} catch (Exception e) {
 								response.put("type", "ERROR");
 								response.put("message", "The method called caused an exception");
-								Log.d(TAG, e.getMessage());
+								Log.w(TAG, e.getMessage());
 								response.put("callargs", request);
 							}
 							handler.sendMessage(response);
@@ -161,7 +161,7 @@ public class RPCThread implements DataThreadInterface {
 							errorMsg.put("message", "Error receiving request");
 							errorMsg.put("callargs", request);
 							handler.sendMessage(errorMsg);
-							Log.d(TAG, "received potential request that was not formulated correctly");
+							Log.w(TAG, "received potential request that was not formulated correctly");
 						}						
 					} else {
 						JSONObject errorMsg = new JSONObject();
@@ -173,7 +173,7 @@ public class RPCThread implements DataThreadInterface {
 						errorMsg.put("message", "Error receiving request");
 						errorMsg.put("callargs", request);
 						handler.sendMessage(errorMsg);
-						Log.d(TAG, "received potential request that was not formulated correctly");
+						Log.w(TAG, "received potential request that was not formulated correctly");
 					}
 					
 				} catch (NullPointerException e) { 
@@ -188,7 +188,7 @@ public class RPCThread implements DataThreadInterface {
 			}
 			if (!timeout) {
 				try {
-					Log.d(TAG, "run: Attempting to close connection");
+					Log.v(TAG, "run: Attempting to close connection");
 					s.close();
 					handler.discard();
 					handler = null;
@@ -202,7 +202,7 @@ public class RPCThread implements DataThreadInterface {
 			if(_timeToClose){
 				try {
 					socket.close();
-					Log.d(TAG, "closed server socket");
+					Log.v(TAG, "closed server socket");
 				} catch (IOException e) {
 					e.printStackTrace();
 				}

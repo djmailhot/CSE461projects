@@ -118,10 +118,10 @@ public class RPCCall extends NetLoadableService {
 		// If a persistent connection is possible, this is where code would be added 
 		// Extra credit TODO
 		
-		Log.d(TAG, "Sending handshake to service");
+		Log.v(TAG, "Sending handshake to service");
 		handler.sendMessage(handshake);
 		
-		Log.d(TAG, "Attempting to receive response to handshake");
+		Log.v(TAG, "Attempting to receive response to handshake");
 		JSONObject response = handler.readMessageAsJSONObject();
 		
 		
@@ -142,7 +142,7 @@ public class RPCCall extends NetLoadableService {
 				handler.discard();
 				return msg;
 			}
-			Log.d(TAG, "Handshake successful");
+			Log.v(TAG, "Handshake successful");
 		} else {
 			JSONObject msg = new JSONObject();
 			msg.put("msg", "Error: server is behaving oddly");
@@ -161,7 +161,7 @@ public class RPCCall extends NetLoadableService {
 		call.put("host", ip);
 		call.put("args", userRequest);
 		
-		Log.d(TAG, "Attempting to send the call");
+		Log.v(TAG, "Attempting to send the call");
 		handler.sendMessage(call);
 		
 		Log.d(TAG, "Attempting to receive a response");

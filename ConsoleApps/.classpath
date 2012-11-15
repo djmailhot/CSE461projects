@@ -12,5 +12,6 @@
 	<classpathentry combineaccessrules="false" kind="src" path="/DB461"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/DB461ConsoleOnly"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/NetConsoleOnly"/>
+	<classpathentry kind="lib" path="/Lib/DDNSTester.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

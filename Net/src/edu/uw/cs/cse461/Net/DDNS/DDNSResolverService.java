@@ -21,6 +21,7 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 	private ARecord rootRecord;
 	private ARecord hostRecord;
 	private final String ddnsPassword;
+	private final int resolveTTL;
 	
 	/**
 	 * Called to end execution.  Specifically, need to terminate any threads we've created.
@@ -68,6 +69,8 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		int rootPort = Integer.parseInt(config.getProperty("ddns.rootport")); 
 		this.rootRecord = new DDNSRRecord.SOARecord(rootIp, rootPort);
 
+		this.resolveTTL = Integer.parseInt(config.getProperty("ddns.resolvettl"));
+		
 		this.ddnsPassword = config.getProperty("ddnsresolver.password");
 		
 		String ip = NetBase.theNetBase().myIP();
@@ -158,6 +161,7 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		String targetIp = rootRecord.ip();
 		int targetPort = rootRecord.port();
 		
+		int steps = 0;
 		try {
 			do {
 				Log.d(TAG, "rpc "+method+" request with args "+args);
@@ -186,9 +190,17 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 					} else if (type.equals("CNAME")) {
 						// resolve the name alias
 						args.put("name", node.getString("alias"));
+						targetIp = rootRecord.ip();
+						targetPort = rootRecord.port();
 					} else {
 						// SOMETHING WENT WRONG
 					}
+				}
+				steps++;
+				// Did we take it to the limit?
+				if(!(steps < resolveTTL)) {
+					// OVER THE LIMIT
+					throw new DDNSException.DDNSTTLExpiredException(new DDNSFullName(args.getString("name")));
 				}
 			} while (!done);
 		} catch (JSONException e) {

@@ -160,7 +160,7 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 			Log.i(TAG, "socket timed out");
 			return null;  // The message reading timed out, so return null
 		}
-		Log.d(TAG, totalBytesRead+" total bytes read from the socket");
+		//Log.d(TAG, totalBytesRead+" total bytes read from the socket");
 
 		return buf;
 	}
@@ -175,7 +175,7 @@ public class TCPMessageHandler implements TCPMessageHandlerInterface {
 
 		byte[] header = readFromStream(inputStream, MESSAGE_HEADER_SIZE);
 		int payloadLength = byteToInt(header);
-		Log.d(TAG, Arrays.toString(header));
+		//Log.d(TAG, Arrays.toString(header));
 		payload = readFromStream(inputStream, payloadLength);
 		
 		return payload;
