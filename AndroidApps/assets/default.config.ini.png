@@ -15,7 +15,7 @@ debug.level=3
 #------------------------------------------------
 
 #  hostname must be a full name
-net.hostname=Trinity.Zion.uw12au.cse461.
+net.hostname=Zion.uw12au.cse461.
 
 # list of class names of services to be started
 net.services=edu.uw.cs.cse461.Net.Base.DataXferRawService \
