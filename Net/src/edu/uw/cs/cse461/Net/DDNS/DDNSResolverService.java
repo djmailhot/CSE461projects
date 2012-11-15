@@ -135,7 +135,7 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		JSONObject node = response.getJSONObject("node");
 
 		ARecord resultRecord = null;
-		String type = response.getString("type");
+		String type = node.getString("type");
 		if (type.equals("A")) {
 			resultRecord = new DDNSRRecord.ARecord(node);
 		} else if (type.equals("SOA")) {

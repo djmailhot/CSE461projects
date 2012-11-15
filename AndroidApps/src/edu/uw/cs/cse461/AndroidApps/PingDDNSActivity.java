@@ -1,7 +1,5 @@
 package edu.uw.cs.cse461.AndroidApps;
 
-import java.util.List;
-
 import org.json.JSONObject;
 
 import android.content.SharedPreferences;
@@ -151,8 +149,6 @@ public class PingDDNSActivity extends NetLoadableAndroidApp {
     				runOnUiThread(new Runnable() {
     					public void run() {
     						ConfigManager config = NetBase.theNetBase().config();
-    						// TODO remove this testing thing
-    						List<String> services = NetBase.theNetBase().loadedServiceNames();
     						resolver = (DDNSResolverService)NetBase.theNetBase().getService("ddnsresolver");
     						DDNSFullName name = new DDNSFullName(config.getProperty("net.hostname", "default.12au.cse461."));
     				        
