@@ -75,13 +75,13 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		super("ddnsresolver", true);
 		ConfigManager config = NetBase.theNetBase().config();
 
-		this.resolveTTL = Integer.parseInt(config.getProperty("ddns.resolvettl"));
+		this.resolveTTL = Integer.parseInt(config.getProperty("ddnsresolver.serverttl"));
 		this.ddnsPassword = config.getProperty("ddnsresolver.password");
 
 		String rootIp = config.getProperty("ddns.rootserver"); 
 		int rootPort = Integer.parseInt(config.getProperty("ddns.rootport")); 
 		this.rootRecord = new DDNSRRecord.SOARecord(rootIp, rootPort);
-		
+
 		String ip = NetBase.theNetBase().myIP();
 		String port = config.getProperty("rpc.serverport");
 		this.hostRecord = new DDNSRRecord.ARecord(ip, Integer.parseInt(port));
@@ -91,7 +91,6 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 
 		DDNSFullNameInterface fullName = new DDNSFullName(NetBase.theNetBase().hostname()); 
 		register(fullName, this.hostRecord.port());
-
 
 		resolverCache = new ResolverCache(RESOLVER_CACHE_TIMEOUT);
 	}
@@ -185,12 +184,19 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		int steps = 0;
 		try {
 			do {
+				String targetName = args.getString("name");
+				steps++;
+				// Did we take it to the limit?
+				if(steps > resolveTTL) {
+					// OVER THE LIMIT
+					throw new DDNSException.DDNSTTLExpiredException(new DDNSFullName(targetName));
+				}
+
 				Log.d(TAG, "rpc "+method+" request with args "+args);
 				// invoke the name resolver
 				Log.d(TAG, "rpc "+method+" request with args "+args);
 				Log.d(TAG, "port: " + targetPort + " ip: " + targetIp);
 
-				String targetName = args.getString("name");
 				response = resolverCache.get(targetName);
 
 				// if the cache has no entry
@@ -223,12 +229,6 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 					} else {
 						// SOMETHING WENT WRONG
 					}
-				}
-				steps++;
-				// Did we take it to the limit?
-				if(!(steps < resolveTTL)) {
-					// OVER THE LIMIT
-					throw new DDNSException.DDNSTTLExpiredException(new DDNSFullName(args.getString("name")));
 				}
 			} while (!done);
 		} catch (JSONException e) {
