@@ -13,6 +13,7 @@ import edu.uw.cs.cse461.Net.Base.NetBase;
 import edu.uw.cs.cse461.Net.Base.NetLoadable.NetLoadableService;
 import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSAuthorizationException;
 import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSNoSuchNameException;
+import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSNoAddressException;
 import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSRuntimeException;
 import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSTTLExpiredException;
 import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSZoneException;
@@ -420,10 +421,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 					if (!timers.containsKey(rec.name) || timers.get(rec.name) + registerTimeout < System.currentTimeMillis()) {
 						// If there is no registration time stamp or the timestamp is out of date, then we have found a node 
 						// without a recently updated address and we should pass this on.
-						node.put("resulttype", "ddnsexception");
-						node.put("exceptionnum", 2);
-						node.put("name", name.toString());
-						node.put("message", "No address associated with this node");
+						node = exceptionTranslation(new DDNSNoAddressException(name));
 						return node;
 					}
 					node.put("ip", intermed.ip());
