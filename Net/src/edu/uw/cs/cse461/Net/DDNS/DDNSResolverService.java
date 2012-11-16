@@ -1,7 +1,12 @@
 package edu.uw.cs.cse461.Net.DDNS;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Scanner;
+import java.util.TimerTask;
+
+import java.util.Timer;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -17,17 +22,20 @@ import edu.uw.cs.cse461.util.Log;
 
 public class DDNSResolverService extends NetLoadableService implements HTTPProviderInterface, DDNSResolverServiceInterface {
 	private static final String TAG="DDNSResolverService";
-
-	private ARecord rootRecord;
-	private ARecord hostRecord;
+	private static final int REREGISTER_TIMEOUT_BUFFER = 10000; // in ms.  10 seconds of buffer time
+	
+	private final ARecord rootRecord;
+	private final ARecord hostRecord;
 	private final String ddnsPassword;
 	private final int resolveTTL;
+	private final RegistrationScheduler registrationScheduler;
 	
 	/**
 	 * Called to end execution.  Specifically, need to terminate any threads we've created.
 	 */
 	@Override
 	public void shutdown() {
+		registrationScheduler.unscheduleAll();
 		try {
 			this.unregister(new DDNSFullName(NetBase.theNetBase().hostname()));
 		} catch (DDNSException e) {
@@ -65,18 +73,20 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		super("ddnsresolver", true);
 		ConfigManager config = NetBase.theNetBase().config();
 
+		this.resolveTTL = Integer.parseInt(config.getProperty("ddns.resolvettl"));
+		this.ddnsPassword = config.getProperty("ddnsresolver.password");
+
 		String rootIp = config.getProperty("ddns.rootserver"); 
 		int rootPort = Integer.parseInt(config.getProperty("ddns.rootport")); 
 		this.rootRecord = new DDNSRRecord.SOARecord(rootIp, rootPort);
-
-		this.resolveTTL = Integer.parseInt(config.getProperty("ddns.resolvettl"));
-		
-		this.ddnsPassword = config.getProperty("ddnsresolver.password");
 		
 		String ip = NetBase.theNetBase().myIP();
 		String port = config.getProperty("rpc.serverport");
 		this.hostRecord = new DDNSRRecord.ARecord(ip, Integer.parseInt(port));
-		
+
+		registrationScheduler = new RegistrationScheduler(REREGISTER_TIMEOUT_BUFFER);
+
+
 		DDNSFullNameInterface fullName = new DDNSFullName(NetBase.theNetBase().hostname()); 
 		register(fullName, this.hostRecord.port());
 	}
@@ -92,6 +102,9 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 			.put("name", name.toString())
 			.put("password", ddnsPassword);
 		JSONObject response = invokeDDNSService("unregister", args);
+
+		JSONObject node = response.getJSONObject("node");
+		registrationScheduler.unscheduleReregister(name);
 	}
 	
 	/**
@@ -113,14 +126,18 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 				.put("password", ddnsPassword);
 			
 			JSONObject response = invokeDDNSService("register", args);
-			//JSONObject node = response.getJSONObject("node");
+			JSONObject node = response.getJSONObject("node");
 			
-			int lifetime = response.getInt("lifetime");
+			long lifetime = response.getInt("lifetime") * 1000;
+			Log.d(TAG, "scheduling reregistration with lifetime of "+lifetime+"ms of "+name);
+			registrationScheduler.scheduleReregister(name, port, lifetime);
+
 		} catch (JSONException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
+
 	
 	/**
 	 * Resolves a name to an ARecord containing an address.  Throws an exception if no ARecord w/ address can be found.
@@ -235,6 +252,67 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 					Log.i(TAG, "Specified name "+name+" not found in zone "+zone);
 					return new DDNSException.DDNSZoneException(name, zone);
 			default: return new DDNSException(message);
+		}
+	}
+
+
+	/*
+	 * Schedules reregistration of DDNS names based on provided lifetimes
+	 */
+	private class RegistrationScheduler {
+		private final int reregisterTimeoutBuffer;
+		private final Timer reregisterTimer;
+		private final Map<DDNSFullNameInterface, TimerTask> scheduledTimerTaskMap;
+
+		public RegistrationScheduler(int reregisterTimeoutBuffer) {
+			this.reregisterTimeoutBuffer = reregisterTimeoutBuffer;
+			this.reregisterTimer = new Timer();
+			this.scheduledTimerTaskMap = new HashMap<DDNSFullNameInterface, TimerTask>();
+		}
+
+		/*
+		 * Schedules a DDNS name to be reregistered before the specified lifetime
+		 * comes to pass.
+		 */
+		private void scheduleReregister(final DDNSFullNameInterface name, final int port, long lifetime) {
+			long timeout = lifetime - reregisterTimeoutBuffer;
+			timeout = timeout < 0 ? 0 : timeout;
+
+			TimerTask task = new TimerTask() {
+				@Override
+				public void run() {
+					try {
+						register(name, port);
+					} catch (DDNSException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
+			};
+			unscheduleReregister(name);
+			
+			synchronized(this) {
+				reregisterTimer.schedule(task, timeout);
+				scheduledTimerTaskMap.put(name, task);
+			}
+		}
+
+		/*
+		 * Unschedules the specified DDNS name from being reregistered.
+		 */
+		private synchronized void unscheduleReregister(DDNSFullNameInterface name) {
+			TimerTask task = scheduledTimerTaskMap.get(name);
+			if (task != null) {
+				task.cancel();
+				scheduledTimerTaskMap.remove(name);
+			}
+		}
+
+		/*
+		 * Unschedules all DDNS nodes from being reregistered.
+		 */
+		private synchronized void unscheduleAll() {
+			reregisterTimer.cancel();
 		}
 	}
 
