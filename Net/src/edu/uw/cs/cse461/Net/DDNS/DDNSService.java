@@ -482,7 +482,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 		}
 		
 		// Probably don't want use the Node class for password check?
-		public void updatePortIP (String pass, int port, String IP) throws DDNSAuthorizationException, DDNSRuntimeException {
+		public void updatePortIP (String pass, int port, String IP) throws DDNSAuthorizationException {
 			if (!pass.equals(password)) {
 				throw new DDNSAuthorizationException(name);
 			} else {
