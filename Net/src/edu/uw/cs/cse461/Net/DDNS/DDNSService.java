@@ -230,26 +230,8 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 			DDNSNode rec;
 			try {
 				rec = findName(name);
-			} catch (DDNSNoSuchNameException e) {
-				// We received a no such name exception, so we should pass that on.
-				node.put("resulttype", "ddnsexception");
-				node.put("exceptionnum", 1);
-				node.put("name", name);
-				node.put("message", e.getMessage());
-				return node;
-			} catch (DDNSTTLExpiredException e) {
-				// We timed out before resolving this name, so we should pass that on.
-				node.put("resulttype", "ddnsexception");
-				node.put("exceptionnum", 5);
-				node.put("name", name);
-				node.put("message", "Registration took too long to complete");
-				return node;
-			} catch (DDNSZoneException e) {
-				// This node is not any descendant of our root, so we can't resolve it
-				node.put("resulttype", "ddnsexception");
-				node.put("exceptionnum", 6);
-				node.put("name", name);
-				node.put("message", e.getMessage());
+			} catch (DDNSException e) {
+				node = exceptionTranslation(e);
 				return node;
 			}
 			try {
@@ -278,19 +260,8 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 					}
 					return result;
 				}
-			} catch (DDNSAuthorizationException e) {
-				// If authorization failed, pass this along.
-				node.put("resulttype", "ddnsexception");
-				node.put("exceptionnum", 3);
-				node.put("name", rec.name);
-				node.put("message", e.getMessage());
-				return node;
-			} catch (DDNSRuntimeException e) {
-				// If some other error occurred, pass this along
-				node.put("resulttype", "ddnsexception");
-				node.put("exceptionnum", 4);
-				node.put("name", rec.name);
-				node.put("message", e.getMessage());
+			} catch (DDNSException e) {
+				node = exceptionTranslation(e);
 				return node;
 			}
 		} catch (JSONException e) {
@@ -321,26 +292,8 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 			DDNSNode rec;
 			try {
 				rec = findName(name);
-			} catch (DDNSNoSuchNameException e) {
-				// We received a no such name exception, so we should pass that on.
-				node.put("resulttype", "ddnsexception");
-				node.put("exceptionnum", 1);
-				node.put("name", name);
-				node.put("message", e.getMessage());
-				return node;
-			} catch (DDNSTTLExpiredException e) {
-				// We timed out before resolving this name, so we should pass that on.
-				node.put("resulttype", "ddnsexception");
-				node.put("exceptionnum", 5);
-				node.put("name", name);
-				node.put("message", "Registration took too long to complete");
-				return node;
-			} catch (DDNSZoneException e) {
-				// This node is not any descendant of our root, so we can't resolve it
-				node.put("resulttype", "ddnsexception");
-				node.put("exceptionnum", 6);
-				node.put("name", name);
-				node.put("message", e.getMessage());
+			} catch (DDNSException e) {
+				node = exceptionTranslation(e);
 				return node;
 			}
 			synchronized(rec) { // Ought to prevent race conditions between register and resolve
@@ -372,23 +325,14 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 					
 						timers.put(rec.name, System.currentTimeMillis()); 
 						// alters the timestamp so that the lifetime they get is as close to accurate as possible
-					} catch (DDNSAuthorizationException e) {
-						node.put("resulttype", "ddnsexception");
-						node.put("exceptionnum", 3);
-						node.put("name", rec.name);
-						node.put("message", e.getMessage());
-						return node;
-					} catch (DDNSRuntimeException e) {
-						node.put("resulttype", "ddnsexception");
-						node.put("exceptionnum", 4);
-						node.put("name", rec.name);
-						node.put("message", e.getMessage());
+					} catch (DDNSException e) {
+						node = exceptionTranslation(e);
 						return node;
 					}			
 				} else {
 					CNAMERecord cname = (CNAMERecord)rec.info;
 					node.put("type", "CNAME");
-					node.put("alias", cname.alias());
+					node.put("alias", cname.alias().toString());
 					result.put("node", node);
 					result.put("done", false);
 				}
@@ -453,32 +397,12 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 			DDNSNode rec;
 			try {
 				rec = findName(name);
-			} catch (DDNSNoSuchNameException e) {
-				// We received a no such name exception, so we should pass that on.
-				node.put("resulttype", "ddnsexception");
-				node.put("exceptionnum", 1);
-				node.put("name", name.toString());
-				node.put("message", e.getMessage());
-				return node;
-			} catch (DDNSTTLExpiredException e) {
-				// We timed out before resolving this name, so we should pass that on.
-				node.put("resulttype", "ddnsexception");
-				node.put("exceptionnum", 5);
-				node.put("name", name.toString());
-				node.put("message", "Resolution took too long to complete");
-				return node;
-			} catch (DDNSZoneException e) {
-				// This node is not any descendant of our root, so we can't resolve it
-				node.put("resulttype", "ddnsexception");
-				node.put("exceptionnum", 6);
-				node.put("name", name.toString());
-				node.put("message", e.getMessage());
+			} catch (DDNSException e) {
+				node = exceptionTranslation(e);
 				return node;
 			}
-			Log.w(TAG, "Node should be empty at line 478: it is " + node.toString());
 			// No errors occurred so handle each type of node after storing the name (which won't change between node types)
 			node.put("name", rec.name.toString());
-			Log.w(TAG, "Node should not be empty at line 481: it is " + node.toString());
 			
 			if (rec.info.type().equals(RRType.RRTYPE_CNAME)) {
 				// We have reached a CNAME so we don't know how to proceed and will leave that up to DDNSResolver
@@ -582,5 +506,22 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 				throw new DDNSNoSuchNameException(name);
 			}
 		}
+	}
+	
+	private JSONObject exceptionTranslation (DDNSException e) throws JSONException {
+		JSONObject result = new JSONObject();
+		result.put("resulttype", "ddnsexception");
+		int exceptionnum = e.errorCode.toInt();
+		result.put("exceptionnum", exceptionnum);
+		result.put("message", e.getMessage());
+		if (exceptionnum != 3) { 
+			// The exception is not a DDNSRuntimeException
+			result.put("name", e.args.get(0));
+			if (exceptionnum == 6) {
+				// The exception is a DDNSZoneException
+				result.put("zone", e.args.get(1));
+			}
+		}
+		return result;
 	}
 }
