@@ -22,8 +22,9 @@ import edu.uw.cs.cse461.util.Log;
 
 public class DDNSResolverService extends NetLoadableService implements HTTPProviderInterface, DDNSResolverServiceInterface {
 	private static final String TAG="DDNSResolverService";
-	private static final Long RESOLVER_CACHE_TIMEOUT = (long)30000; // timeout in ms
-	private static final int REREGISTER_TIMEOUT_BUFFER = 10000; // in ms.  10 seconds of buffer time
+	private static final int RESOLVER_EXCEPTION_RETRY_LIMIT = 5; // number of retries for DDNS resolution after runtime exceptions
+	private static final Long CACHE_RECORD_TTL = (long)30000; // in ms.  Time to live for cached records
+	private static final int REREGISTER_LIFETIME_BUFFER = 10000; // in ms.  Buffer of time between reregister attempt and lifetime limit
 	
 	private final ARecord rootRecord;
 	private final ARecord hostRecord;
@@ -41,10 +42,11 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		try {
 			this.unregister(new DDNSFullName(NetBase.theNetBase().hostname()));
 		} catch (DDNSException e) {
-			Log.e(TAG, e.getMessage());
+			Log.w(TAG, e.getMessage());
 			e.printStackTrace();			
 		} catch (JSONException e) {
-			Log.e(TAG, "unregister failed. Maybe.");
+			Log.w(TAG, "Unregister failed. Maybe.");
+			e.printStackTrace();			
 		}
 		super.shutdown();
 	}
@@ -86,13 +88,12 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		String port = config.getProperty("rpc.serverport");
 		this.hostRecord = new DDNSRRecord.ARecord(ip, Integer.parseInt(port));
 
-		registrationScheduler = new RegistrationScheduler(REREGISTER_TIMEOUT_BUFFER);
+		this.registrationScheduler = new RegistrationScheduler(REREGISTER_LIFETIME_BUFFER);
+		this.resolverCache = new ResolverCache(CACHE_RECORD_TTL);
 
 
 		DDNSFullNameInterface fullName = new DDNSFullName(NetBase.theNetBase().hostname()); 
 		register(fullName, this.hostRecord.port());
-
-		resolverCache = new ResolverCache(RESOLVER_CACHE_TIMEOUT);
 	}
 
 	/**
@@ -136,7 +137,7 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 			registrationScheduler.scheduleReregister(name, port, lifetime);
 
 		} catch (JSONException e) {
-			// TODO Auto-generated catch block
+			Log.w(TAG, "JSONException during registration for "+name);
 			e.printStackTrace();
 		}
 	}
@@ -150,21 +151,36 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 	 */
 	@Override
 	public ARecord resolve(String nameStr) throws DDNSException, JSONException {
-
-		// invoke the name resolver
-		JSONObject args = new JSONObject().put("name", nameStr);
-		JSONObject response = invokeDDNSService("resolve", args);
-
-		JSONObject node = response.getJSONObject("node");
-
 		ARecord resultRecord = null;
-		String type = node.getString("type");
-		if (type.equals("A")) {
-			resultRecord = new DDNSRRecord.ARecord(node);
-		} else if (type.equals("SOA")) {
-			resultRecord = new DDNSRRecord.SOARecord(node);
+
+		resultRecord = resolverCache.get(nameStr);
+
+		if (resultRecord == null) {
+			// invoke the name resolver
+			JSONObject args = new JSONObject().put("name", nameStr);
+			JSONObject response = invokeDDNSService("resolve", args);
+
+			JSONObject node = response.getJSONObject("node");
+
+			String type = node.getString("type");
+			if (type.equals("A") || type.equals("SOA")) {
+				resultRecord = parseRecord(node);
+				resolverCache.put(nameStr, resultRecord);
+
+				String name = node.getString("name");
+				// If the names don't match, we're probably asking for a CNAME
+				if (!name.equals(nameStr)) {
+					resolverCache.put(name, resultRecord);
+				}
+			} else {
+				// SOMETHING WENT WRONG
+				// this is not an expected result
+				String errorMessage = "DDNS resolve result for "+nameStr+" returned invalid node "+node;
+				Log.w(TAG, errorMessage);
+				throw new DDNSException.DDNSRuntimeException(errorMessage);
+			}
 		} else {
-			// SOMETHING WENT WRONG
+			Log.d(TAG, "cache contained record "+resultRecord);
 		}
 		return resultRecord;
 	}
@@ -175,6 +191,13 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		return "whatever you want";
 	}
 
+
+	/**
+	 * Invoke the DDNS service
+	 *
+	 * @param method the specific DDNS method to invoke
+	 * @param args the invocation arguments
+	 */
 	private JSONObject invokeDDNSService(String method, JSONObject args) throws DDNSException {
 		boolean done = false;
 		JSONObject response = null;
@@ -182,66 +205,103 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		int targetPort = rootRecord.port();
 		
 		int steps = 0;
+		int numExceptions = 0;
 		try {
 			do {
 				String targetName = args.getString("name");
 				steps++;
-				// Did we take it to the limit?
+				// Did we take it to the limit?  The limit on resolve steps to take?
 				if(steps > resolveTTL) {
-					// OVER THE LIMIT
+					// SAFETY IS NOT GUARANTEED
 					throw new DDNSException.DDNSTTLExpiredException(new DDNSFullName(targetName));
 				}
 
+
 				Log.d(TAG, "rpc "+method+" request with args "+args);
 				// invoke the name resolver
-				Log.d(TAG, "rpc "+method+" request with args "+args);
-				Log.d(TAG, "port: " + targetPort + " ip: " + targetIp);
+				response = RPCCall.invoke(targetIp, targetPort, "ddns", method, args);
 
-				response = resolverCache.get(targetName);
 
-				// if the cache has no entry
-				if (response == null) {
-					response = RPCCall.invoke(targetIp, targetPort, "ddns", method, args);
-					resolverCache.put(targetName, response);
-				}
-	
 	            Log.d(TAG, "response payload of "+response);
-				// if the response is an exception, then throw the exception
-				if (response.getString("resulttype").equals("ddnsexception")) {
-					throw parseDDNSException(response);
-				}
-				done = response.getBoolean("done");
-	
-				if (!done) {
-					// parse the node representation
-					JSONObject node = response.getJSONObject("node");
-					String type = node.getString("type");
-					// continue with resolving
-					if (type.equals("NS")) {
-						// update the target ip/port
-						targetIp = node.getString("ip");
-						targetPort = node.getInt("port");
-					} else if (type.equals("CNAME")) {
-						// resolve the name alias
-						args.put("name", node.getString("alias"));
-						targetIp = rootRecord.ip();
-						targetPort = rootRecord.port();
-					} else {
+				try {
+					// check if something is wrong with the response.
+					if (!response.has("resulttype")) {
 						// SOMETHING WENT WRONG
+						// this is not an expected result
+						String errorMessage = "RPC result contains unexpected content "+response;
+						Log.w(TAG, errorMessage);
+						throw new DDNSException.DDNSRuntimeException(errorMessage);
+					} else if (response.getString("resulttype").equals("ddnsexception")) {
+						// response is a DDNS exception
+						throw parseDDNSException(response);
 					}
+					done = response.getBoolean("done");
+		
+					// If we are not done, unpack the attached node, update our target,
+					// and make another resolution call
+					if (!done) {
+						// parse the node representation
+						JSONObject node = response.getJSONObject("node");
+						String type = node.getString("type");
+						// continue with resolving
+						if (type.equals("NS")) {
+							// update the target ip/port
+							targetIp = node.getString("ip");
+							targetPort = node.getInt("port");
+						} else if (type.equals("CNAME")) {
+							// resolve the name alias
+							args.put("name", node.getString("alias"));
+							targetIp = rootRecord.ip();
+							targetPort = rootRecord.port();
+						} else {
+							// SOMETHING WENT WRONG
+							// this is not an expected result
+							String errorMessage = "DDNS intermediate resolution result returned invalid node "+node;
+							Log.w(TAG, errorMessage);
+							throw new DDNSException.DDNSRuntimeException(errorMessage);
+						}
+					}
+				} catch(DDNSException.DDNSRuntimeException re) {
+					// Allow a certain number of immediate retries for runtime exceptions
+					numExceptions++;
+					// If we reached the retry limit for exceptions, then actually throw the exception.
+					if (numExceptions >= RESOLVER_EXCEPTION_RETRY_LIMIT) {
+						Log.e(TAG, re.getMessage());
+						throw re;
+					}
+					Log.i(TAG, "Attempting resolution retry after DDNSRuntime failure.");
+					continue;
 				}
 			} while (!done);
 		} catch (JSONException e) {
-			// TODO Auto-generated catch block
+			Log.w(TAG, "JSONException stopped name resolution for "+method+" request with args "+args);
 			e.printStackTrace();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
+			Log.e(TAG, "IOException stopped name resolution for "+method+" request with args "+args);
 			e.printStackTrace();
 		}
 
 		return response;
 	}
 
+	/**
+	 * Parse the specified JSON bundle into a ARecord node, or null if not valid
+	 */
+	private ARecord parseRecord(JSONObject node) throws JSONException {
+		String type = node.getString("type");
+		if (type.equals("A")) {
+			return new DDNSRRecord.ARecord(node);
+		} else if (type.equals("NS")) {
+			return new DDNSRRecord.NSRecord(node);
+		} else if (type.equals("SOA")) {
+			return new DDNSRRecord.SOARecord(node);
+		}
+		return null;
+	}
+
+	/**
+	 * Parse the specified JSON bundle into DDNSException
+	 */
 	private DDNSException parseDDNSException(JSONObject response) throws JSONException{
 		String message = response.getString("message");
 		DDNSFullName name = new DDNSFullName(response.getString("name"));
@@ -249,44 +309,55 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 		Log.i(TAG, "Exception returned with message: " + message);
 
 		switch (response.getInt("exceptionnum")) {
-			case 1: Log.i(TAG, "Specified name "+name+" not found");
+			case 1: Log.w(TAG, "Specified name "+name+" not found");
 					return new DDNSException.DDNSNoSuchNameException(name);
-			case 2: Log.i(TAG, "node "+name+" has no valid address");
+			case 2: Log.w(TAG, "node "+name+" has no valid address");
 					return new DDNSException.DDNSNoAddressException(name);
-			case 3: Log.i(TAG, "Password invalid for DDNS registration/unregistration");
+			case 3: Log.w(TAG, "Password invalid for DDNS registration/unregistration");
 					return new DDNSException.DDNSAuthorizationException(name);
-			case 4: Log.w(TAG, "DDNS Runtime failure");
+			case 4: Log.e(TAG, "DDNS Runtime failure");
 					return new DDNSException.DDNSRuntimeException(message);
-			case 5: Log.i(TAG, "registration timeout expired for node "+name);
+			case 5: Log.w(TAG, "registration timeout expired for node "+name);
 					return new DDNSException.DDNSTTLExpiredException(name);
 			case 6: DDNSFullName zone = new DDNSFullName(response.getString("zone"));
-					Log.i(TAG, "Specified name "+name+" not found in zone "+zone);
+					Log.w(TAG, "Specified name "+name+" not found in zone "+zone);
 					return new DDNSException.DDNSZoneException(name, zone);
 			default: return new DDNSException(message);
 		}
 	}
 
 
-	/*
+	/**
 	 * Schedules reregistration of DDNS names based on provided lifetimes
 	 */
 	private class RegistrationScheduler {
-		private final int reregisterTimeoutBuffer;
+		private final int reregisterLifetimeBuffer;
 		private final Timer reregisterTimer;
 		private final Map<DDNSFullNameInterface, TimerTask> scheduledTimerTaskMap;
 
-		public RegistrationScheduler(int reregisterTimeoutBuffer) {
-			this.reregisterTimeoutBuffer = reregisterTimeoutBuffer;
+		/**
+		 * Constructs a scheduler to reregister DDNS nodes before each node's
+		 * assigned lifetime expires.  It is intended that nodes have no
+		 * downtime, so reregistration should occur before the lifetime expires.
+		 *
+		 * @param reregisterLifetimeBuffer a buffer of time in ms before the
+		 * estimated end of the lifetime at which the reregister attempt occurs.
+		 */
+		public RegistrationScheduler(int reregisterLifetimeBuffer) {
+			this.reregisterLifetimeBuffer = reregisterLifetimeBuffer;
 			this.reregisterTimer = new Timer();
 			this.scheduledTimerTaskMap = new HashMap<DDNSFullNameInterface, TimerTask>();
 		}
 
-		/*
+		/**
 		 * Schedules a DDNS name to be reregistered before the specified lifetime
 		 * comes to pass.
 		 */
-		private void scheduleReregister(final DDNSFullNameInterface name, final int port, long lifetime) {
-			long timeout = lifetime - reregisterTimeoutBuffer;
+		private synchronized void scheduleReregister(final DDNSFullNameInterface name, final int port, long lifetime) {
+			// subtract the timeout buffer from the lifetime to ensure we
+			// timeout in time to reregister before we die.  Have to take into
+			// account network travel time and compute time.
+			long timeout = lifetime - reregisterLifetimeBuffer;
 			timeout = timeout < 0 ? 0 : timeout;
 
 			TimerTask task = new TimerTask() {
@@ -295,20 +366,18 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 					try {
 						register(name, port);
 					} catch (DDNSException e) {
-						// TODO Auto-generated catch block
+						Log.w(TAG, "DDNSException no reregistration of "+name);
 						e.printStackTrace();
 					}
 				}
 			};
 			unscheduleReregister(name);
 			
-			synchronized(this) {
-				reregisterTimer.schedule(task, timeout);
-				scheduledTimerTaskMap.put(name, task);
-			}
+			reregisterTimer.schedule(task, timeout);
+			scheduledTimerTaskMap.put(name, task);
 		}
 
-		/*
+		/**
 		 * Unschedules the specified DDNS name from being reregistered.
 		 */
 		private synchronized void unscheduleReregister(DDNSFullNameInterface name) {
@@ -319,33 +388,36 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 			}
 		}
 
-		/*
+		/**
 		 * Unschedules all DDNS nodes from being reregistered.
 		 */
 		private synchronized void unscheduleAll() {
-			reregisterTimer.cancel();
+			reregisterTimer.purge();
 		}
 	}
 
 
-	/*
-	 * Cache for records recently resolved
+	/**
+	 * Cache for DDNS records recently resolved
 	 */
 	private class ResolverCache {
-		private final Map<String, JSONObject> records;
+		private final Map<String, ARecord> records;
 		private final Map<String, Long> timestamps;
-		private final Long timeout;
+		private final Long recordTTL;
 
-		public ResolverCache(Long timeout) {
-			this.timeout = timeout;
-			this.records = new HashMap<String, JSONObject>();
+		/**
+		 * Construct cache for DDNS records with specified cache Time To Live
+		 */
+		public ResolverCache(Long recordTTL) {
+			this.recordTTL = recordTTL;
+			this.records = new HashMap<String, ARecord>();
 			this.timestamps = new HashMap<String, Long>();
 		}
 
-		public JSONObject get(String key) {
+		public ARecord get(String key) {
 			Long currTime = System.currentTimeMillis();
 			Long cacheTime;
-			JSONObject record = null;
+			ARecord record = null;
 			synchronized(this) {
 				// If we are not in the cache
 				if (!timestamps.containsKey(key) || !records.containsKey(key)) {
@@ -356,14 +428,15 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 			}
 
 			// If the record is stale
-			if (currTime > cacheTime + timeout) {
+			if (currTime > cacheTime + recordTTL) {
+				Log.v(TAG, "DDNS record "+key+" evicted from cache after recordTTL");
 				remove(key);
 				return null;
 			}
 			return record;
 		}
 
-		public void put(String key, JSONObject value) {
+		public void put(String key, ARecord value) {
 			Long currTime = System.currentTimeMillis();
 			synchronized(this) {
 				records.put(key, value);
