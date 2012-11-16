@@ -491,9 +491,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 				if (type != RRType.RRTYPE_CNAME) {
 					ARecord me = (ARecord) info;
 					me.updateAddress(IP, port);
-				} else {
-					throw new DDNSRuntimeException("Attempted to set the address of an alias");  // I think this is an actual error . . .
-				}
+				} 
 			}
 		}
 		

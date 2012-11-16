@@ -103,7 +103,6 @@ public class DDNSResolverService extends NetLoadableService implements HTTPProvi
 			.put("password", ddnsPassword);
 		JSONObject response = invokeDDNSService("unregister", args);
 
-		JSONObject node = response.getJSONObject("node");
 		registrationScheduler.unscheduleReregister(name);
 	}
 	
