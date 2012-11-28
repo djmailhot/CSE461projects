@@ -239,13 +239,126 @@ public class SNetController {
 		}
 	}
 	
+	// Traverses the array provided to see if the provided value is present.  Must be linear search because the
+	// values are not ordered
+	private boolean contains(JSONArray array, int value) throws JSONException {
+		for (int i = 0; i < array.length(); i++) {
+			if (array.getInt(i) == value) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
 	/**
 	 * The callee side of fetchUpdates - invoked via RPC.
 	 * @param args JSONObject containing commmunity JSONObject and needphotos JSONArray (described in assignment)
 	 * @return JSONObject containing communityupdates JSONObject and photoupdates JSONArray (described in assignment)
 	 */
 	synchronized public JSONObject fetchUpdatesCallee(JSONObject args) throws Exception {
-		return null;
+		JSONObject community = args.getJSONObject("community"); // Community they know about
+		JSONArray needphotos = args.getJSONArray("needphotos"); // Photos they want
+		
+		JSONArray photoupdates = new JSONArray(); // Photos that I store that they either wanted or may want because the community has changed
+		JSONObject communityupdates = new JSONObject(); // Community members for which I have a better generation number.
+		
+		SNetDB461 database = new SNetDB461(mDBName); // The database of info I have
+		Iterator<String> keys = community.keys();
+		Log.v(TAG, "assumed that the iterator contains strings");
+		while (keys.hasNext()) {
+			// Traverses their community values to see where it differs from mine.  Stores all the information of mine that is more up to date than
+			// theirs.
+			String name = keys.next();
+			CommunityRecord myVals = database.COMMUNITYTABLE.readOne(name);
+			JSONObject theirVals = community.getJSONObject(name);		
+			int genNum = theirVals.getInt("generation");
+			if (myVals == null) {
+				Log.d(TAG, "We don't currently have a record for: " + name);
+				// I don't have this member of the community, so I should store the data for later
+				myVals = database.COMMUNITYTABLE.createRecord();
+				myVals.name = new DDNSFullName(name);
+				myVals.generation = genNum;
+				myVals.isFriend = false;
+				myVals.myPhotoHash = theirVals.getInt("myphotohash");
+				myVals.chosenPhotoHash = theirVals.getInt("chosenphotohash");
+				database.COMMUNITYTABLE.write(myVals);
+			} else if (genNum < myVals.generation) {
+				Log.d(TAG, "Our record is more up to date than theirs for: " + name);
+				// Their data is not up to date, so we need to put our information into the updates to send
+				JSONObject update = new JSONObject();
+				update.put("generation", myVals.generation);
+				update.put("myphotohash", myVals.myPhotoHash);
+				if (database.PHOTOTABLE.readOne(myVals.myPhotoHash) != null) {
+					if (!contains(photoupdates, myVals.myPhotoHash)) { 
+						// check if we need to add the hash to the list of photohashes.  
+						// This will only happen if it is not already present and we actually store the data we have told them about.
+						photoupdates.put(myVals.myPhotoHash);
+					}
+				}
+				update.put("chosenphotohash", myVals.chosenPhotoHash);
+				if (database.PHOTOTABLE.readOne(myVals.chosenPhotoHash) != null) {
+					if (!contains(photoupdates, myVals.chosenPhotoHash)) {
+						// check if we need to add the hash to the list of photohashes
+						// This will only happen if it is not already present and we actually store the data we have told them about.
+						photoupdates.put(myVals.chosenPhotoHash);
+					}
+				}
+				communityupdates.put(name, update);
+			} else if (genNum > myVals.generation) {
+				// My data is not up to date, so I should update it.
+				Log.d(TAG, "Their record is more up to date than ours for: " + name);
+				myVals.generation = genNum;
+				myVals.myPhotoHash = theirVals.getInt("myphotohash");
+				myVals.chosenPhotoHash = theirVals.getInt("chosenphotohash");
+				database.COMMUNITYTABLE.write(myVals);
+			} // If our generation numbers are the same, do nothing
+		}
+		// Traverses all of our community records to see if we know about any member they do not.
+		RecordSet<CommunityRecord> myCom = database.COMMUNITYTABLE.readAll();
+		for (CommunityRecord rec : myCom) {
+			String name = rec.name.toString();
+			if (!community.has(name)) {
+				Log.d(TAG, "We have a record they do not for: " + name);
+				// The name is not in their list of community members, so we must add it to the updates we will send back
+				JSONObject update = new JSONObject();
+				update.put("generation", rec.generation);
+				update.put("myphotohash", rec.myPhotoHash);
+				update.put("chosenphotohash", rec.chosenPhotoHash);
+				if (database.PHOTOTABLE.readOne(rec.myPhotoHash) != null) {
+					if (!contains(photoupdates, rec.myPhotoHash)) { 
+						// check if we need to add the hash to the list of photohashes.  
+						// This will only happen if it is not already present and we actually store the data we have told them about.
+						photoupdates.put(rec.myPhotoHash);
+					}
+				}
+				if (database.PHOTOTABLE.readOne(rec.chosenPhotoHash) != null) {
+					if (!contains(photoupdates, rec.chosenPhotoHash)) {
+						// check if we need to add the hash to the list of photohashes
+						// This will only happen if it is not already present and we actually store the data we have told them about.
+						photoupdates.put(rec.chosenPhotoHash);
+					}
+				}
+				communityupdates.put(name, update);
+			}
+		}
+		
+		for (int i = 0; i < needphotos.length(); i++) {
+			// Traverse the photos they say they need
+			int currenthash = needphotos.getInt(i);
+			if (!contains(photoupdates, currenthash)) {
+				// If we haven't already put that into our updates, check if we have it.
+				if (database.PHOTOTABLE.readOne(currenthash) != null) {
+					// If we have it, tell them we do.
+					Log.d(TAG, "We have a photo they requested of hash: " + currenthash);
+					photoupdates.put(currenthash);
+				}
+			}
+		}
+		Log.d(TAG, "We are returning our results");
+		JSONObject result = new JSONObject();
+		result.put("photoupdates", photoupdates);
+		result.put("communityupdates", communityupdates);
+		return result;
 	}	
 	
 	/**
