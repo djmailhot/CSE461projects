@@ -1,13 +1,23 @@
 package edu.uw.cs.cse461.SNet;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.Iterator;
 
+import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import edu.uw.cs.cse461.DB461.DB461.DB461Exception;
+import edu.uw.cs.cse461.DB461.DB461.RecordSet;
 import edu.uw.cs.cse461.Net.Base.NetBase;
+import edu.uw.cs.cse461.Net.DDNS.DDNSException;
 import edu.uw.cs.cse461.Net.DDNS.DDNSFullName;
 import edu.uw.cs.cse461.Net.DDNS.DDNSFullNameInterface;
+import edu.uw.cs.cse461.Net.DDNS.DDNSRRecord;
+import edu.uw.cs.cse461.Net.DDNS.DDNSResolverService;
+import edu.uw.cs.cse461.Net.DDNS.DDNSResolverServiceInterface;
+import edu.uw.cs.cse461.Net.RPC.RPCCall;
 import edu.uw.cs.cse461.Net.RPC.RPCService;
 import edu.uw.cs.cse461.SNet.SNetDB461.CommunityRecord;
 import edu.uw.cs.cse461.util.Log;
@@ -26,6 +36,8 @@ public class SNetController {
 	 * A full path name to the sqlite database.
 	 */
 	private String mDBName;
+
+	private DDNSResolverService ddnsResolverService;
 	
 	/**
 	 * IMPLEMENTED: Returns the full path name of the DB file.
@@ -111,6 +123,13 @@ public class SNetController {
 	
 	public SNetController(String dbDirName) {
 		mDBName = dbDirName + "/" + new DDNSFullName(NetBase.theNetBase().hostname()) + "snet.db";
+
+		 try {
+			ddnsResolverService = new DDNSResolverService();
+		} catch (DDNSException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 	
 	/**
@@ -173,6 +192,51 @@ public class SNetController {
 	 * @throws DB461Exception Something went wrong...
 	 */
 	synchronized public void fetchUpdatesCaller( String friend, File galleryDir) throws DB461Exception {
+		SNetDB461 db = null;
+		try {
+			db = new SNetDB461(mDBName);
+
+			// Resolve the friend to a ddns record
+			DDNSRRecord.ARecord ddnsResult = ddnsResolverService.resolve(friend);
+
+			Log.d(TAG, "Putting together JSON glob");
+			// Community info glob
+			JSONObject community = new JSONObject();
+			RecordSet<CommunityRecord> communityRecords = db.COMMUNITYTABLE.readAll();
+			for (CommunityRecord cRecord : communityRecords) {
+				JSONObject value = new JSONObject()
+						.put("generation", cRecord.generation)
+						.put("myphotohash", cRecord.myPhotoHash)
+						.put("chosenphotohash", cRecord.chosenPhotoHash);
+
+				community.put(cRecord.name.toString(), value);
+			}
+
+			// Needphotos info glob
+			JSONArray needphotos = new JSONArray();
+
+
+			// fetch the updates
+			JSONObject args = new JSONObject()
+					.put("community", community)
+					.put("needphotos", needphotos);
+
+			Log.d(TAG, "sending fetchUpdates RPC call with args: "+args);
+			JSONObject response = RPCCall.invoke(ddnsResult.ip(), ddnsResult.port(), "snet", "fetchUpdates", args);
+
+			Log.d(TAG, "response JSON of "+response);
+			// iterate over response
+			Iterator<String> responseJSONIter = response.getJSONObject("community").keys();
+
+		} catch(DDNSException e) {
+			e.printStackTrace();
+		} catch(JSONException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			if ( db != null ) db.discard();
+		}
 	}
 	
 	/**
