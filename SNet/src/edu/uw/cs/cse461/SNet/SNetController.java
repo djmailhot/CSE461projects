@@ -19,6 +19,7 @@ import edu.uw.cs.cse461.Net.DDNS.DDNSResolverService;
 import edu.uw.cs.cse461.Net.RPC.RPCCall;
 import edu.uw.cs.cse461.Net.RPC.RPCService;
 import edu.uw.cs.cse461.SNet.SNetDB461.CommunityRecord;
+import edu.uw.cs.cse461.SNet.SNetDB461.PhotoRecord;
 import edu.uw.cs.cse461.util.Log;
 
 
@@ -397,7 +398,23 @@ public class SNetController {
 	 * @throws Exception
 	 */
 	synchronized public JSONObject fetchPhotoCallee(JSONObject args) throws Exception {
-		return null;
+		int hash = args.getInt("photoHash");
+		int maxlength = args.getInt("maxlength");
+		int offset = args.getInt("offset");	
+		// get all the actual args
+		
+		SNetDB461 database = new SNetDB461(mDBName); // The database of info I have
+		PhotoRecord rec = database.PHOTOTABLE.readOne(hash);
+		JSONObject result = new JSONObject();
+		result.put("photoHash", hash);
+		result.put("offset", offset);
+		// We want this information in our result to return whether we have the information or not.
+		if (rec != null) {
+			
+		} else {
+			result.put("length", 0);
+		}
+		return result;
 	}
 	
 }
