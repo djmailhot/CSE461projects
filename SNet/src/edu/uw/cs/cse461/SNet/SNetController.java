@@ -136,8 +136,8 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		 try {
 			ddnsResolverService = new DDNSResolverService();
 
-			fetchUpdates = new RPCCallableMethod(this, "_rpcFetchUpdates");
-			fetchPhoto = new RPCCallableMethod(this, "_rpcFetchPhoto");
+			fetchUpdates = new RPCCallableMethod(this, "fetchUpdatesCallee");
+			fetchPhoto = new RPCCallableMethod(this, "fetchPhotoCallee");
 
 			RPCService rpcService = (RPCService)NetBase.theNetBase().getService("rpc");
 			rpcService.registerHandler(loadablename(), "fetchupdates", fetchUpdates );
