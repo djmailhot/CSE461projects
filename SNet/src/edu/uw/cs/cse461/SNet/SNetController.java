@@ -16,7 +16,6 @@ import edu.uw.cs.cse461.Net.DDNS.DDNSFullName;
 import edu.uw.cs.cse461.Net.DDNS.DDNSFullNameInterface;
 import edu.uw.cs.cse461.Net.DDNS.DDNSRRecord;
 import edu.uw.cs.cse461.Net.DDNS.DDNSResolverService;
-import edu.uw.cs.cse461.Net.DDNS.DDNSResolverServiceInterface;
 import edu.uw.cs.cse461.Net.RPC.RPCCall;
 import edu.uw.cs.cse461.Net.RPC.RPCService;
 import edu.uw.cs.cse461.SNet.SNetDB461.CommunityRecord;
@@ -231,11 +230,17 @@ public class SNetController {
 			Iterator<String> keysIter;
 
 			// iterate over response
-			JSONObject communityUpdates = response.getJSONObject("community");
+			JSONObject communityUpdates = response.getJSONObject("communityupdates");
 			keysIter = communityUpdates.keys();
 			while (keysIter.hasNext()) {
 				String name = keysIter.next();
+				Log.d(TAG, "looking at: " + name);
 				CommunityRecord record = db.COMMUNITYTABLE.readOne(name);
+				if (record == null) {
+					record = db.COMMUNITYTABLE.createRecord();
+					record.name = new DDNSFullName(name);
+					record.isFriend = false;
+				}
 				JSONObject recordUpdate = communityUpdates.getJSONObject(name);		
 				record.generation = recordUpdate.getInt("generation");
 				record.myPhotoHash = recordUpdate.getInt("myphotohash");
@@ -246,7 +251,7 @@ public class SNetController {
 			// iterate over photos and retieve data for each
 			JSONArray photoHashes = response.getJSONArray("photoupdates");
 	
-			JSONObject response = RPCCall.invoke(ddnsResult.ip(), ddnsResult.port(), "snet", "fetchPhoto", args);
+			response = RPCCall.invoke(ddnsResult.ip(), ddnsResult.port(), "snet", "fetchPhoto", args);
 		
 
 		} catch(DDNSException e) {
