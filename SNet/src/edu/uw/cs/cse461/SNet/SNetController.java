@@ -10,13 +10,17 @@ import org.json.JSONObject;
 
 import edu.uw.cs.cse461.DB461.DB461.DB461Exception;
 import edu.uw.cs.cse461.DB461.DB461.RecordSet;
+import edu.uw.cs.cse461.HTTP.HTTPProviderInterface;
 import edu.uw.cs.cse461.Net.Base.NetBase;
+import edu.uw.cs.cse461.Net.Base.NetLoadable.NetLoadableService;
 import edu.uw.cs.cse461.Net.DDNS.DDNSException;
 import edu.uw.cs.cse461.Net.DDNS.DDNSFullName;
 import edu.uw.cs.cse461.Net.DDNS.DDNSFullNameInterface;
 import edu.uw.cs.cse461.Net.DDNS.DDNSRRecord;
 import edu.uw.cs.cse461.Net.DDNS.DDNSResolverService;
+import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSRuntimeException;
 import edu.uw.cs.cse461.Net.RPC.RPCCall;
+import edu.uw.cs.cse461.Net.RPC.RPCCallableMethod;
 import edu.uw.cs.cse461.Net.RPC.RPCService;
 import edu.uw.cs.cse461.SNet.SNetDB461.CommunityRecord;
 import edu.uw.cs.cse461.util.Log;
@@ -28,14 +32,17 @@ import edu.uw.cs.cse461.util.Log;
  * @author zahorjan
  *
  */
-public class SNetController {
+public class SNetController extends NetLoadableService implements HTTPProviderInterface {
 	private static final String TAG="SNetController";
+	
+	private RPCCallableMethod fetchUpdates;
+	private RPCCallableMethod fetchPhoto;
 	
 	/**
 	 * A full path name to the sqlite database.
 	 */
 	private String mDBName;
-
+	
 	private DDNSResolverService ddnsResolverService;
 	
 	/**
@@ -121,12 +128,23 @@ public class SNetController {
 	//////////////////////////////////////////////////////////////////////////////////////
 	
 	public SNetController(String dbDirName) {
+		super("snet", true);
+
 		mDBName = dbDirName + "/" + new DDNSFullName(NetBase.theNetBase().hostname()) + "snet.db";
 
 		 try {
 			ddnsResolverService = new DDNSResolverService();
-		} catch (DDNSException e) {
-			// TODO Auto-generated catch block
+
+			fetchUpdates = new RPCCallableMethod(this, "_rpcFetchUpdates");
+			fetchPhoto = new RPCCallableMethod(this, "_rpcFetchPhoto");
+
+			RPCService rpcService = (RPCService)NetBase.theNetBase().getService("rpc");
+			rpcService.registerHandler(loadablename(), "fetchupdates", fetchUpdates );
+			rpcService.registerHandler(loadablename(), "fetchphoto", fetchPhoto );
+			
+		} catch (Exception e) {
+			String msg = "SNet constructor caught exception: " + e.getMessage();
+			Log.e(TAG, msg);
 			e.printStackTrace();
 		}
 	}
@@ -397,6 +415,12 @@ public class SNetController {
 	 * @throws Exception
 	 */
 	synchronized public JSONObject fetchPhotoCallee(JSONObject args) throws Exception {
+		return null;
+	}
+
+	@Override
+	public String dumpState() {
+		// TODO Auto-generated method stub
 		return null;
 	}
 	
