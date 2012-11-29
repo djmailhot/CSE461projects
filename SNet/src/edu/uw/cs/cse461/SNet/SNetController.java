@@ -139,8 +139,8 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			fetchPhoto = new RPCCallableMethod(this, "fetchPhotoCallee");
 
 			RPCService rpcService = (RPCService)NetBase.theNetBase().getService("rpc");
-			rpcService.registerHandler(loadablename(), "fetchupdates", fetchUpdates );
-			rpcService.registerHandler(loadablename(), "fetchphoto", fetchPhoto );
+			rpcService.registerHandler(loadablename(), "fetchUpdates", fetchUpdates );
+			rpcService.registerHandler(loadablename(), "fetchPhoto", fetchPhoto );
 			
 		} catch (Exception e) {
 			String msg = "SNet constructor caught exception: " + e.getMessage();
@@ -241,7 +241,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 					.put("needphotos", needphotos);
 
 			Log.d(TAG, "sending fetchUpdates RPC call with args: "+args);
-			JSONObject response = RPCCall.invoke(ddnsResult.ip(), ddnsResult.port(), "snet", "fetchupdates", args);
+			JSONObject response = RPCCall.invoke(ddnsResult.ip(), ddnsResult.port(), "snet", "fetchUpdates", args);
 
 			Log.d(TAG, "response JSON of "+response);
 
