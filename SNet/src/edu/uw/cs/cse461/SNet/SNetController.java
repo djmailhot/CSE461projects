@@ -428,7 +428,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		result.put("offset", offset);
 		// We want this information in our result to return whether we have the information or not.
 		if (rec != null) {
-			
+			// TODO
 		} else {
 			result.put("length", 0);
 		}
