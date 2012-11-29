@@ -195,9 +195,11 @@ public class SNetController {
 		SNetDB461 db = null;
 		try {
 			db = new SNetDB461(mDBName);
+			DDNSRRecord.ARecord ddnsResult;
+			JSONObject args;
 
 			// Resolve the friend to a ddns record
-			DDNSRRecord.ARecord ddnsResult = ddnsResolverService.resolve(friend);
+			ddnsResult = ddnsResolverService.resolve(friend);
 
 			Log.d(TAG, "Putting together JSON glob");
 			// Community info glob
@@ -217,7 +219,7 @@ public class SNetController {
 
 
 			// fetch the updates
-			JSONObject args = new JSONObject()
+			args = new JSONObject()
 					.put("community", community)
 					.put("needphotos", needphotos);
 
@@ -225,8 +227,27 @@ public class SNetController {
 			JSONObject response = RPCCall.invoke(ddnsResult.ip(), ddnsResult.port(), "snet", "fetchUpdates", args);
 
 			Log.d(TAG, "response JSON of "+response);
+
+			Iterator<String> keysIter;
+
 			// iterate over response
-			Iterator<String> responseJSONIter = response.getJSONObject("community").keys();
+			JSONObject communityUpdates = response.getJSONObject("community");
+			keysIter = communityUpdates.keys();
+			while (keysIter.hasNext()) {
+				String name = keysIter.next();
+				CommunityRecord record = db.COMMUNITYTABLE.readOne(name);
+				JSONObject recordUpdate = communityUpdates.getJSONObject(name);		
+				record.generation = recordUpdate.getInt("generation");
+				record.myPhotoHash = recordUpdate.getInt("myphotohash");
+				record.chosenPhotoHash = recordUpdate.getInt("chosenphotohash");
+				db.COMMUNITYTABLE.write(record);
+			}
+
+			// iterate over photos and retieve data for each
+			JSONArray photoHashes = response.getJSONArray("photoupdates");
+	
+			JSONObject response = RPCCall.invoke(ddnsResult.ip(), ddnsResult.port(), "snet", "fetchPhoto", args);
+		
 
 		} catch(DDNSException e) {
 			e.printStackTrace();
