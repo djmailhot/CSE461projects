@@ -242,7 +242,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 					.put("needphotos", needphotos);
 
 			Log.d(TAG, "sending fetchUpdates RPC call with args: "+args);
-			JSONObject response = RPCCall.invoke(ddnsResult.ip(), ddnsResult.port(), "snet", "fetchUpdates", args);
+			JSONObject response = RPCCall.invoke(ddnsResult.ip(), ddnsResult.port(), "snet", "fetchupdates", args);
 
 			Log.d(TAG, "response JSON of "+response);
 
