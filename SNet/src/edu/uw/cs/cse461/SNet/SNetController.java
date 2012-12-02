@@ -23,6 +23,7 @@ import edu.uw.cs.cse461.Net.RPC.RPCCall;
 import edu.uw.cs.cse461.Net.RPC.RPCCallableMethod;
 import edu.uw.cs.cse461.Net.RPC.RPCService;
 import edu.uw.cs.cse461.SNet.SNetDB461.CommunityRecord;
+import edu.uw.cs.cse461.SNet.SNetDB461.Photo;
 import edu.uw.cs.cse461.SNet.SNetDB461.PhotoRecord;
 import edu.uw.cs.cse461.util.Log;
 
@@ -168,6 +169,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 	 * @throws DB461Exception
 	 */
 	synchronized public void setChosenPhoto(DDNSFullNameInterface memberName, String filename, File galleryDir) throws DB461Exception {
+		setPhoto(memberName, filename, galleryDir, "chosenPhoto");
 	}
 
 	/**
@@ -195,7 +197,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			CommunityRecord record = db.COMMUNITYTABLE.readOne(friend.toString());
 			// if the member doesn't exist
 			if (record == null) {
-				String msg = "Memeber "+friend+ " not found when setting friend status";
+				String msg = "Member "+friend+ " not found when setting friend status";
 				Log.e(TAG, msg);
 				throw new DB461Exception(msg);
 			}
@@ -216,6 +218,100 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 	 * @throws DB461Exception  Can't find member in community table, or some unanticipated exception occurs.
 	 */
 	synchronized public void newMyPhoto(DDNSFullNameInterface memberName, String filename, File galleryDir) throws DB461Exception {
+		setPhoto(memberName, filename, galleryDir, "myPhoto");
+	}
+
+	/**
+	 * Registers a photo as the "my" photo for a given member.
+	 * Decrements the reference count of any existing my photo for that member, and deletes the underyling file for it
+	 * as appropriate.
+	 * @param memberName Member name
+	 * @param filename  Full path name to new my photo file
+	 * @param galleryDir File object describing directory in which gallery photos live
+	 * @param photoType String naming the photo type.  Accepts "myPhoto" or "chosenPhoto".
+	 * @throws DB461Exception  Can't find member in community table, or photo doesn't exist, some unanticipated exception occurs.
+	 */
+	synchronized private void setPhoto(DDNSFullNameInterface memberName, String filename, File galleryDir, String photoType) throws DB461Exception {
+		SNetDB461 db = null;
+		try {
+			db = new SNetDB461(mDBName);
+			CommunityRecord cRecord;
+			PhotoRecord pRecord;
+			int photoHash;
+			int oldPhotoHash;
+
+			// check if the member exists
+			cRecord = db.COMMUNITYTABLE.readOne(memberName.toString());
+			if (cRecord == null) {
+				// if doesn't exist, exceptionization!
+				String msg = "Member "+memberName+ " not found when setting new photo";
+				Log.e(TAG, msg);
+				throw new DB461Exception(msg);
+			}
+
+			// compute the photo's hash
+			File photoFile = new File(galleryDir.getCanonicalPath() + File.separatorChar + filename);
+			if (!photoFile.exists()) {
+				// if doesn't exist, exceptionization!
+				String msg = "Photo file "+photoFile.getCanonicalPath()+ " not found when setting new photo";
+				Log.e(TAG, msg);
+				throw new DB461Exception(msg);
+			}
+
+			Photo photo = new Photo(photoFile);
+			photoHash = photo.hash();
+
+			// check the db for the new photo
+			pRecord = db.PHOTOTABLE.readOne(photoHash);
+			if (pRecord == null) {
+				// create a new photo in the db
+				pRecord = db.PHOTOTABLE.createRecord();
+				pRecord.hash = photoHash;
+				pRecord.refCount = 0;
+				pRecord.file = photoFile;
+			}
+			// increment the refCount of the new photo
+			pRecord.refCount++;
+			db.PHOTOTABLE.write(pRecord);
+
+
+			// change the community member's record
+			if (photoType.equals("myPhoto")) {
+				oldPhotoHash = cRecord.myPhotoHash;
+				cRecord.myPhotoHash = photoHash;
+			} else if (photoType.equals("chosenPhoto")) {
+				oldPhotoHash = cRecord.myPhotoHash;
+				cRecord.myPhotoHash = photoHash;
+			} else {
+				throw new IllegalArgumentException("Photo type of "+photoType+" not a valid value");
+			}
+			db.COMMUNITYTABLE.write(cRecord);
+
+
+			// deal with the old photo
+			pRecord = db.PHOTOTABLE.readOne(oldPhotoHash);
+			if (pRecord != null) {
+				// decrement the refCount of the old photo
+				pRecord.refCount--;
+				
+				if (pRecord.refCount <= 0) {
+					// delete if needed
+					db.PHOTOTABLE.delete(pRecord.hash);
+					pRecord = null;
+				} else {
+					// else save the change
+					db.PHOTOTABLE.write(pRecord);
+				}
+			}
+		
+		} catch (IOException e) {
+			String msg = "IOException when reading file of new photo";
+			Log.e(TAG, msg);
+			e.printStackTrace();
+			throw new DB461Exception(e.getMessage());
+		} finally {
+			if ( db != null ) db.discard();
+		}
 	}
 	
 	/**
