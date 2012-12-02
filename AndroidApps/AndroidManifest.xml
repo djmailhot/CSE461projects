@@ -10,6 +10,7 @@
 	<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 	
+    <uses-feature android:name="android.hardware.camera" />
     
     <uses-sdk
         android:minSdkVersion="10"
@@ -52,7 +53,7 @@
         </activity>
        	<activity
             android:name="edu.uw.cs.cse461.AndroidApps.SNetActivity"
-            android:label="@string/title_activity_snet" >
+            android:label="SNet">
         </activity>
     	<activity
             android:name="edu.uw.cs.cse461.AndroidApps.VersionActivity"
