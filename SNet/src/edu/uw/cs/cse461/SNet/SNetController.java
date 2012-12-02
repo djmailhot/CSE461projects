@@ -222,6 +222,9 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			Log.d(TAG, "Putting together JSON glob");
 			// Community info glob
 			JSONObject community = new JSONObject();
+			// Needphotos info glob
+			JSONArray needphotos = new JSONArray();
+
 			RecordSet<CommunityRecord> communityRecords = db.COMMUNITYTABLE.readAll();
 			for (CommunityRecord cRecord : communityRecords) {
 				JSONObject value = new JSONObject()
@@ -230,17 +233,32 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 						.put("chosenphotohash", cRecord.chosenPhotoHash);
 
 				community.put(cRecord.name.toString(), value);
+
+				// if the memeber is a friend, make sure we have their most recent photo data
+				if (cRecord.isFriend) {
+					PhotoRecord pRecord;
+					int photoHash;
+					// check the 'myPhoto', noting that a hash == 0 means no photo
+					pRecord = db.PHOTOTABLE.readOne(cRecord.myPhotoHash);
+					photoHash = cRecord.myPhotoHash;
+					if (pRecord == null && photoHash != 0) {
+						needphotos.put(photoHash);
+					}
+					// check the 'chosenPhoto', noting that a hash == 0 means no photo
+					pRecord = db.PHOTOTABLE.readOne(cRecord.chosenPhotoHash);
+					photoHash = cRecord.chosenPhotoHash;
+					if (pRecord == null && photoHash != 0) {
+						needphotos.put(photoHash);
+					}
+				}
 			}
-
-			// Needphotos info glob
-			JSONArray needphotos = new JSONArray();
-
 
 			// fetch the updates
 			args = new JSONObject()
 					.put("community", community)
 					.put("needphotos", needphotos);
 
+			// SEND IT OFF INTO THE GREAT INTERNET
 			Log.d(TAG, "sending fetchUpdates RPC call with args: "+args);
 			JSONObject response = RPCCall.invoke(ddnsResult.ip(), ddnsResult.port(), "snet", "fetchUpdates", args);
 
@@ -253,24 +271,31 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			keysIter = communityUpdates.keys();
 			while (keysIter.hasNext()) {
 				String name = keysIter.next();
-				Log.d(TAG, "looking at: " + name);
 				CommunityRecord record = db.COMMUNITYTABLE.readOne(name);
 				if (record == null) {
+					Log.i(TAG, "creating new db record for "+name);
 					record = db.COMMUNITYTABLE.createRecord();
 					record.name = new DDNSFullName(name);
 					record.isFriend = false;
 				}
 				JSONObject recordUpdate = communityUpdates.getJSONObject(name);		
-				record.generation = recordUpdate.getInt("generation");
-				record.myPhotoHash = recordUpdate.getInt("myphotohash");
-				record.chosenPhotoHash = recordUpdate.getInt("chosenphotohash");
+				// check if the updated record is really more recent than ours
+				if (record.generation <= recordUpdate.getInt("generation")) {
+					Log.v(TAG, "old record for "+name+" was "+record);
+					Log.d(TAG, "updating record for "+name+" to "+recordUpdate);
+					record.generation = recordUpdate.getInt("generation");
+					record.myPhotoHash = recordUpdate.getInt("myphotohash");
+					record.chosenPhotoHash = recordUpdate.getInt("chosenphotohash");
+				} else {
+					// something went wrong
+					Log.i(TAG, "fetchUpdates returned record for "+name+", but was not more recent than ours");
+				}
 				db.COMMUNITYTABLE.write(record);
 			}
 
-			// iterate over photos and retieve data for each
+			// iterate over photos and retrieve data for each
 			JSONArray photoHashes = response.getJSONArray("photoupdates");
 	
-			response = RPCCall.invoke(ddnsResult.ip(), ddnsResult.port(), "snet", "fetchPhoto", args);
 		
 
 		} catch(DDNSException e) {
@@ -406,6 +431,22 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		return result;
 	}	
 	
+	/**
+	 * Caller side of fetchPhoto (fetch one photo).
+	 * @throws Exception
+	 */
+	synchronized private JSONObject fetchPhotoCaller(String ip, int port, int photoHash) throws Exception {
+		
+
+		JSONObject args = new JSONObject()
+				.put("photohash", photoHash)
+				.put("offset", 0)
+				.put("maxlength", 100);
+
+		JSONObject response = RPCCall.invoke(ip, port, "snet", "fetchPhoto", args);
+
+		return response;
+	}
 	/**
 	 * Callee side of fetchPhoto (fetch one photo).  To fetch an image file, call this
 	 * method repeatedly, starting at offset 0 and incrementing by the returned length each
