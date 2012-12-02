@@ -428,6 +428,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		JSONObject result = new JSONObject();
 		result.put("photoupdates", photoupdates);
 		result.put("communityupdates", communityupdates);
+		database.discard();
 		return result;
 	}	
 	
