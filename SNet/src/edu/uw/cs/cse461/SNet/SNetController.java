@@ -189,6 +189,21 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 	 * @throws DB461Exception The member is not in the community table in the DB, or some unanticipated exception occurs.
 	 */
 	synchronized public void setFriend(DDNSFullNameInterface friend, boolean isfriend) throws DB461Exception {
+		SNetDB461 db = null;
+		try {
+			db = new SNetDB461(mDBName);
+			CommunityRecord record = db.COMMUNITYTABLE.readOne(friend.toString());
+			// if the member doesn't exist
+			if (record == null) {
+				String msg = "Memeber "+friend+ " not found when setting friend status";
+				Log.e(TAG, msg);
+				throw new DB461Exception(msg);
+			}
+			record.isFriend = isfriend;
+			db.COMMUNITYTABLE.write(record);
+		} finally {
+			if ( db != null ) db.discard();
+		}
 	}
 	
 	/**
