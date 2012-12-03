@@ -92,6 +92,67 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
         
     }
     
+    //  Allows for code reuse
+    private void setLayoutMain () {
+    	Log.d(TAG, "Layout is main");
+    	setContentView(R.layout.snet_main);
+        
+        SNetDB461 database = null;
+        // Attempts to set the my and chosenPhoto displays
+        try {
+			database = new SNetDB461(pathName + "/" + mMyName + "snet.db");
+			CommunityRecord me = database.COMMUNITYTABLE.readOne(mMyName.toString());
+			PhotoRecord myPhoto = database.PHOTOTABLE.readOne(me.myPhotoHash);
+			PhotoRecord chosenPhoto = database.PHOTOTABLE.readOne(me.chosenPhotoHash);
+			if (myPhoto == null) {
+				Log.w(TAG, "Photo record for myPhoto is null");
+			} else {
+				((ImageView)findViewById(R.id.mypicture)).setImageBitmap(BitmapLoader.loadBitmap(myPhoto.file.getCanonicalPath(), 100, 100));
+			}
+			if (chosenPhoto == null) {
+				Log.w(TAG, "Photo record for chosenPhoto is null");
+			} else {
+				((ImageView)findViewById(R.id.chosenpicture)).setImageBitmap(BitmapLoader.loadBitmap(chosenPhoto.file.getCanonicalPath(), 100, 100));
+			}
+			
+		} catch (DB461Exception e) {
+			Log.e(TAG, "Had trouble with the database");
+		} catch (IOException e) { 
+			Log.e(TAG, "Couldn't get the filename for the photos to work");
+		} finally {
+			if (database != null) {
+				database.discard();
+			}
+		}
+    }
+    
+    // Allows for code reuse
+    private void setLayoutContact() {
+    	setContentView(R.layout.snet_contact);
+    	currentLayout = R.layout.snet_contact;
+                
+        List<CharSequence> names = new ArrayList<CharSequence>();
+        try {
+			SNetDB461 database = new SNetDB461(pathName + "/" + mMyName + "snet.db");
+			RecordSet<CommunityRecord> records = database.COMMUNITYTABLE.readAll();
+			for(CommunityRecord rec: records) {
+				Log.d(TAG, "Adding value " + rec.name.toString() + " to the list");
+				names.add(rec.name.toString());
+			}
+			// Populates the list of names with those included in the community
+			database.discard();
+		} catch (DB461Exception e) {
+			Log.e(TAG, "Failed to access the database");
+		}
+		// Sets up the spinner
+        Spinner spinner = (Spinner)findViewById(R.id.memberspinner);
+        ArrayAdapter<CharSequence> adapter = new ArrayAdapter<CharSequence>(this, android.R.layout.simple_spinner_item, names);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        spinner.setOnItemSelectedListener(this);
+        Log.d(TAG, "Setting the spinner");
+    }
+    
     /**
      * Called after we've been unloaded from memory and are restarting.  E.g.,
      * 1st launch after power-up; relaunch after going Home.
@@ -101,39 +162,11 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
         Log.d(TAG, "onStart");
         SharedPreferences settings = getSharedPreferences(PREFS_NAME, 3);
         if (settings.getInt("currentLayout", currentLayout) == R.layout.snet_main) {
-        	Log.d(TAG, "Layout is main");
-        	setContentView(R.layout.snet_main);
-            
-            SNetDB461 database = null;
-            // Attempts to set the my and chosenPhoto displays
-            try {
-    			database = new SNetDB461(pathName + "/" + mMyName + "snet.db");
-    			CommunityRecord me = database.COMMUNITYTABLE.readOne(mMyName.toString());
-    			PhotoRecord myPhoto = database.PHOTOTABLE.readOne(me.myPhotoHash);
-    			PhotoRecord chosenPhoto = database.PHOTOTABLE.readOne(me.chosenPhotoHash);
-    			if (myPhoto == null) {
-    				Log.w(TAG, "Photo record for myPhoto is null");
-    			} else {
-    				((ImageView)findViewById(R.id.mypicture)).setImageBitmap(BitmapLoader.loadBitmap(myPhoto.file.getCanonicalPath(), 100, 100));
-    			}
-    			if (chosenPhoto == null) {
-    				Log.w(TAG, "Photo record for chosenPhoto is null");
-    			} else {
-    				((ImageView)findViewById(R.id.chosenpicture)).setImageBitmap(BitmapLoader.loadBitmap(chosenPhoto.file.getCanonicalPath(), 100, 100));
-    			}
-    			
-    		} catch (DB461Exception e) {
-    			Log.e(TAG, "Had trouble with the database");
-    		} catch (IOException e) { 
-    			Log.e(TAG, "Couldn't get the filename for the photos to work");
-    		} finally {
-    			if (database != null) {
-    				database.discard();
-    			}
-    		}            
+        	setLayoutMain();
+        	currentLayout = R.layout.snet_main;
         } else {
         	Log.d(TAG, "Layout is contact");
-        	setContentView(R.layout.snet_contact);
+        	setLayoutContact();
         	currentLayout = R.layout.snet_contact;
         }
         // save my context so that this app can retrieve it later
@@ -141,7 +174,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     }
     
     /**
-     * Called whenever Anroid infrastructure feels like it; for example, if the user hits the Home button.
+     * Called whenever Android infrastructure feels like it; for example, if the user hits the Home button.
      */
     @Override
     protected void onStop() {
@@ -150,7 +183,6 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     	
     	SharedPreferences settings = getSharedPreferences(PREFS_NAME, 3);
     	SharedPreferences.Editor editor = settings.edit(); 
-    	// TODO can I use this to store the spinner's choices/current selected
     	editor.putInt("currentLayout", currentLayout);
     	editor.commit();
     }
@@ -269,65 +301,14 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
      */
     public void onExchange (View b) {
     	Log.d(TAG, "Update Pictures selected");
-    	setContentView(R.layout.snet_contact);
-    	currentLayout = R.layout.snet_contact;
-                
-        List<CharSequence> names = new ArrayList<CharSequence>();
-        try {
-			SNetDB461 database = new SNetDB461(pathName + "/" + mMyName + "snet.db");
-			RecordSet<CommunityRecord> records = database.COMMUNITYTABLE.readAll();
-			for(CommunityRecord rec: records) {
-				Log.d(TAG, "Adding value " + rec.name.toString() + " to the list");
-				names.add(rec.name.toString());
-			}
-			// Populates the list of names with those included in the community
-			database.discard();
-		} catch (DB461Exception e) {
-			Log.e(TAG, "Failed to access the database");
-		}
-		// Sets up the spinner
-        Spinner spinner = (Spinner)findViewById(R.id.memberspinner);
-        ArrayAdapter<CharSequence> adapter = new ArrayAdapter<CharSequence>(this, android.R.layout.simple_spinner_item, names);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-        spinner.setOnItemSelectedListener(this);
-        Log.d(TAG, "Setting the spinner");
+    	setLayoutContact();
         // save my context so that this app can retrieve it later
         ContextManager.setActivityContext(this);
     }
     
     public void onBackPressed() {
     	if (currentLayout == R.layout.snet_contact) {
-    		Log.d(TAG, "Layout is main");
-        	setContentView(R.layout.snet_main);
-            
-            SNetDB461 database = null;
-            // Attempts to set the my and chosenPhoto displays
-            try {
-    			database = new SNetDB461(pathName + "/" + mMyName + "snet.db");
-    			CommunityRecord me = database.COMMUNITYTABLE.readOne(mMyName.toString());
-    			PhotoRecord myPhoto = database.PHOTOTABLE.readOne(me.myPhotoHash);
-    			PhotoRecord chosenPhoto = database.PHOTOTABLE.readOne(me.chosenPhotoHash);
-    			if (myPhoto == null) {
-    				Log.w(TAG, "Photo record for myPhoto is null");
-    			} else {
-    				((ImageView)findViewById(R.id.mypicture)).setImageBitmap(BitmapLoader.loadBitmap(myPhoto.file.getCanonicalPath(), 100, 100));
-    			}
-    			if (chosenPhoto == null) {
-    				Log.w(TAG, "Photo record for chosenPhoto is null");
-    			} else {
-    				((ImageView)findViewById(R.id.chosenpicture)).setImageBitmap(BitmapLoader.loadBitmap(chosenPhoto.file.getCanonicalPath(), 100, 100));
-    			}
-    			
-    		} catch (DB461Exception e) {
-    			Log.e(TAG, "Had trouble with the database");
-    		} catch (IOException e) { 
-    			Log.e(TAG, "Couldn't get the filename for the photos to work");
-    		} finally {
-    			if (database != null) {
-    				database.discard();
-    			}
-    		}
+    		setLayoutMain();
     		currentLayout = R.layout.snet_main;
     	} else {
     		super.onBackPressed();
