@@ -287,8 +287,8 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				oldPhotoHash = cRecord.myPhotoHash;
 				cRecord.myPhotoHash = photoHash;
 			} else if (photoType.equals("chosenPhoto")) {
-				oldPhotoHash = cRecord.myPhotoHash;
-				cRecord.myPhotoHash = photoHash;
+				oldPhotoHash = cRecord.chosenPhotoHash;
+				cRecord.chosenPhotoHash= photoHash;
 			} else {
 				throw new IllegalArgumentException("Photo type of "+photoType+" not a valid value");
 			}
