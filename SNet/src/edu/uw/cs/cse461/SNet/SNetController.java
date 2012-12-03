@@ -288,7 +288,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				cRecord.myPhotoHash = photoHash;
 			} else if (photoType.equals("chosenPhoto")) {
 				oldPhotoHash = cRecord.chosenPhotoHash;
-				cRecord.chosenPhotoHash= photoHash;
+				cRecord.chosenPhotoHash = photoHash;
 			} else {
 				throw new IllegalArgumentException("Photo type of "+photoType+" not a valid value");
 			}
@@ -306,6 +306,10 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 					// delete if needed
 					db.PHOTOTABLE.delete(pRecord.hash);
 					Log.i(TAG, "Deleted old photo record for "+pRecord.file);
+					boolean deleted = pRecord.file.delete();
+					if (!deleted) {
+						Log.w(TAG, "photo file "+pRecord.file.getCanonicalPath()+" failed to be deleted when refCount reached 0");
+					}
 					pRecord = null;
 				} else {
 					// else save the change
