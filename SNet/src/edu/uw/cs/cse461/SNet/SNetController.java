@@ -251,6 +251,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 
 			// compute the photo's hash
 			File photoFile = new File(galleryDir.getCanonicalPath() + File.separatorChar + filename);
+			Log.i(TAG, "Call to set "+photoType+" to "+photoFile.getCanonicalPath());
 			if (!photoFile.exists()) {
 				// if doesn't exist, exceptionization!
 				String msg = "Photo file "+photoFile.getCanonicalPath()+ " not found when setting new photo";
@@ -260,7 +261,10 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 
 			Photo photo = new Photo(photoFile);
 			photoHash = photo.hash();
+			Log.v(TAG, "Computed photo hash of "+photoHash);
 
+
+			Log.v(TAG, "Attempting to increment record for new photo");
 			// check the db for the new photo
 			pRecord = db.PHOTOTABLE.readOne(photoHash);
 			if (pRecord == null) {
@@ -269,12 +273,15 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				pRecord.hash = photoHash;
 				pRecord.refCount = 0;
 				pRecord.file = photoFile;
+				Log.v(TAG, "Created new photo record in db");
 			}
 			// increment the refCount of the new photo
 			pRecord.refCount++;
 			db.PHOTOTABLE.write(pRecord);
+			Log.d(TAG, "New photo record "+pRecord);
 
 
+			Log.v(TAG, "Attempting to switch photo hash in member record "+cRecord.name);
 			// change the community member's record
 			if (photoType.equals("myPhoto")) {
 				oldPhotoHash = cRecord.myPhotoHash;
@@ -289,6 +296,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 
 
 			// deal with the old photo
+			Log.v(TAG, "Attempting to decrement old photo record and delete if neccessary");
 			pRecord = db.PHOTOTABLE.readOne(oldPhotoHash);
 			if (pRecord != null) {
 				// decrement the refCount of the old photo
@@ -297,13 +305,16 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				if (pRecord.refCount <= 0) {
 					// delete if needed
 					db.PHOTOTABLE.delete(pRecord.hash);
+					Log.i(TAG, "Deleted old photo record for "+pRecord.file);
 					pRecord = null;
 				} else {
 					// else save the change
 					db.PHOTOTABLE.write(pRecord);
 				}
 			}
-		
+
+			
+			Log.v(TAG, "Successfully set "+photoType+" to "+photoFile.getCanonicalPath());
 		} catch (IOException e) {
 			String msg = "IOException when reading file of new photo";
 			Log.e(TAG, msg);
@@ -327,8 +338,11 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			DDNSRRecord.ARecord ddnsResult;
 			JSONObject args;
 
+			Log.i(TAG, "Call to fetchUpdatesCaller for friend "+friend);
+
 			// Resolve the friend to a ddns record
 			ddnsResult = ddnsResolverService.resolve(friend);
+			Log.v(TAG, "Resolved friend "+friend+" to DDNS address "+ddnsResult);
 
 			Log.d(TAG, "Putting together JSON glob");
 			// Community info glob
@@ -366,8 +380,8 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 
 			// fetch the updates
 			args = new JSONObject()
-					.put("community", community)
-					.put("needphotos", needphotos);
+				.put("community", community)
+				.put("needphotos", needphotos);
 
 			// SEND IT OFF INTO THE GREAT INTERNET
 			Log.d(TAG, "sending fetchUpdates RPC call with args: "+args);
