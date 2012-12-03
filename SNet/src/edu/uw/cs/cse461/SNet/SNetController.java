@@ -599,7 +599,9 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		result.put("offset", offset);
 		// We want this information in our result to return whether we have the information or not.
 		if (rec != null) {
-			// TODO
+			// TODO Fetch the file found in the PhotoRecord.  Take the bytes of the file and encode(source, offset, length).
+			// Need to check on the length myself before calling encode so I don't run off the edge (the user will not expect this)
+			// Then put the encoded bytes into the result object as "photoData"
 		} else {
 			result.put("length", 0);
 		}
