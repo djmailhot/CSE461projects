@@ -182,13 +182,34 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 	/**
 	 * This method supports the manual setting of a user's generation number.  It is probably not useful
 	 * in building the SNet application per se, but can be useful in debugging tools you might write.
+	 * 
+	 * If no previous generation number, return -1
 	 * @param memberName Name of the member whose generation number you want to set
 	 * @param gen The value the generation number should be set to.
 	 * @return The old value of the member's generation number
 	 * @throws DB461Exception  Member doesn't exist in community db, or some unanticipated exception occurred.
 	 */
 	synchronized public int setGenerationNumber(DDNSFullNameInterface memberName, int gen) throws DB461Exception {
-		return -1;
+		SNetDB461 db = null;
+		int old = -1;
+		try {
+			db = new SNetDB461(mDBName);
+			CommunityRecord record = db.COMMUNITYTABLE.readOne(memberName.toString());
+			// if the member does not exist
+			if (record == null) {
+				String msg = "Member "+memberName+ " not found when setting generation number";
+				Log.e(TAG, msg);
+				throw new DB461Exception(msg);
+			}
+			old = record.generation;
+			record.generation = gen;
+			db.COMMUNITYTABLE.write(record);
+		} finally {
+			if (db != null) {
+				db.discard();
+			}
+		}
+		return old;
 	}
 
 	/**
@@ -604,6 +625,13 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		result.put("offset", offset);
 		// We want this information in our result to return whether we have the information or not.
 		if (rec != null) {
+			File file = rec.file;
+			if (file == null) {
+				Log.e(TAG, "We have a PhotoRecord with a non-existant file! AAAAAH");
+				throw new Exception("I'm sorry, I can't do that, Dave");
+			}
+			byte[] unencoded;
+			
 			// TODO Fetch the file found in the PhotoRecord.  Take the bytes of the file and encode(source, offset, length).
 			// Need to check on the length myself before calling encode so I don't run off the edge (the user will not expect this)
 			// Then put the encoded bytes into the result object as "photoData"
