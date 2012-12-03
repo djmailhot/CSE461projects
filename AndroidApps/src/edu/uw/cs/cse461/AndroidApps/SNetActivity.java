@@ -49,6 +49,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
 	
 	private String currentSelection = "";
 	
+	private int currentLayout = R.layout.snet_main;
 	/**
 	 * The infrastructure requires a parameterless, public constructor for all NetLoadableAndroidApp's.
 	 */
@@ -88,38 +89,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.d(TAG, "onCreate");
-        setContentView(R.layout.snet_main);
         
-        SNetDB461 database = null;
-        // Attempts to set the my and chosenPhoto displays
-        try {
-			database = new SNetDB461(pathName + "/" + mMyName + "snet.db");
-			CommunityRecord me = database.COMMUNITYTABLE.readOne(mMyName.toString());
-			PhotoRecord myPhoto = database.PHOTOTABLE.readOne(me.myPhotoHash);
-			PhotoRecord chosenPhoto = database.PHOTOTABLE.readOne(me.chosenPhotoHash);
-			if (myPhoto == null) {
-				Log.w(TAG, "Photo record for myPhoto is null");
-			} else {
-				((ImageView)findViewById(R.id.mypicture)).setImageBitmap(BitmapLoader.loadBitmap(myPhoto.file.getCanonicalPath(), 100, 100));
-			}
-			if (chosenPhoto == null) {
-				Log.w(TAG, "Photo record for chosenPhoto is null");
-			} else {
-				((ImageView)findViewById(R.id.chosenpicture)).setImageBitmap(BitmapLoader.loadBitmap(chosenPhoto.file.getCanonicalPath(), 100, 100));
-			}
-			
-		} catch (DB461Exception e) {
-			Log.e(TAG, "Had trouble with the database");
-		} catch (IOException e) { 
-			Log.e(TAG, "Couldn't get the filename for the photos to work");
-		} finally {
-			if (database != null) {
-				database.discard();
-			}
-		}
-        
-        // save my context so that this app can retrieve it later
-        ContextManager.setActivityContext(this);
     }
     
     /**
@@ -129,7 +99,45 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     protected void onStart() {
     	super.onStart();
         Log.d(TAG, "onStart");
-    	// TODO figure out what else needs to happen in here (if anything) as this can be called with either of the snet layouts as the content view
+        SharedPreferences settings = getSharedPreferences(PREFS_NAME, 3);
+        if (settings.getInt("currentLayout", currentLayout) == R.layout.snet_main) {
+        	Log.d(TAG, "Layout is main");
+        	setContentView(R.layout.snet_main);
+            
+            SNetDB461 database = null;
+            // Attempts to set the my and chosenPhoto displays
+            try {
+    			database = new SNetDB461(pathName + "/" + mMyName + "snet.db");
+    			CommunityRecord me = database.COMMUNITYTABLE.readOne(mMyName.toString());
+    			PhotoRecord myPhoto = database.PHOTOTABLE.readOne(me.myPhotoHash);
+    			PhotoRecord chosenPhoto = database.PHOTOTABLE.readOne(me.chosenPhotoHash);
+    			if (myPhoto == null) {
+    				Log.w(TAG, "Photo record for myPhoto is null");
+    			} else {
+    				((ImageView)findViewById(R.id.mypicture)).setImageBitmap(BitmapLoader.loadBitmap(myPhoto.file.getCanonicalPath(), 100, 100));
+    			}
+    			if (chosenPhoto == null) {
+    				Log.w(TAG, "Photo record for chosenPhoto is null");
+    			} else {
+    				((ImageView)findViewById(R.id.chosenpicture)).setImageBitmap(BitmapLoader.loadBitmap(chosenPhoto.file.getCanonicalPath(), 100, 100));
+    			}
+    			
+    		} catch (DB461Exception e) {
+    			Log.e(TAG, "Had trouble with the database");
+    		} catch (IOException e) { 
+    			Log.e(TAG, "Couldn't get the filename for the photos to work");
+    		} finally {
+    			if (database != null) {
+    				database.discard();
+    			}
+    		}            
+        } else {
+        	Log.d(TAG, "Layout is contact");
+        	setContentView(R.layout.snet_contact);
+        	currentLayout = R.layout.snet_contact;
+        }
+        // save my context so that this app can retrieve it later
+        ContextManager.setActivityContext(this);
     }
     
     /**
@@ -140,11 +148,10 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     	super.onStop();
     	Log.d(TAG, "onStop");
     	
-    	SharedPreferences settings = getSharedPreferences(PREFS_NAME, 0);
-    	SharedPreferences.Editor editor = settings.edit(); /* TODO replace this with relevant data
-    	editor.putString("serverip", mServerIP);
-    	editor.putString("serverport", mServerPort);
-    	editor.putString("message", mMsg); */
+    	SharedPreferences settings = getSharedPreferences(PREFS_NAME, 3);
+    	SharedPreferences.Editor editor = settings.edit(); 
+    	// TODO can I use this to store the spinner's choices/current selected
+    	editor.putInt("currentLayout", currentLayout);
     	editor.commit();
     }
     
@@ -197,7 +204,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
             	    fOut.flush();
             	    fOut.close();
             	    // Writes the bitmap to the file
-                    snet.newMyPhoto(mMyName, filename, mGallery);
+                    snet.newMyPhoto(mMyName, file + ".jpg", mGallery);
                     // Then attempts to update the MyPhoto field for the user.
                     
                     // Then tries to update the gallery viewer
@@ -232,12 +239,14 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
         		int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
         		String filePath = cursor.getString(columnIndex);
         		cursor.close();
-        	
         		try {
-        			snet.setChosenPhoto(mMyName, filePath, mGallery);
+        			filePath = filePath.substring(mGallery.getCanonicalPath().length());
+            		snet.setChosenPhoto(mMyName, filePath, mGallery);
         			// Tries to set the selected photo as the user's chosen photo
         		} catch (DB461Exception e) {
         			Log.e(TAG, "We failed to set the selected photo as the new chosen photo");
+        		} catch (IOException e) {
+        			Log.e(TAG, "We failed to get the path name");
         		}
         	} else if (resultCode == RESULT_CANCELED) { 
         		Log.d(TAG, "User cancelled selected a new chosen photo");
@@ -261,6 +270,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     public void onExchange (View b) {
     	Log.d(TAG, "Update Pictures selected");
     	setContentView(R.layout.snet_contact);
+    	currentLayout = R.layout.snet_contact;
                 
         List<CharSequence> names = new ArrayList<CharSequence>();
         try {
@@ -283,8 +293,45 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
         spinner.setOnItemSelectedListener(this);
         Log.d(TAG, "Setting the spinner");
         // save my context so that this app can retrieve it later
-    	// This doesn't seem to have a visible effect, should I leave it in? TODO
-        ContextManager.setActivityContext(this);        
+        ContextManager.setActivityContext(this);
+    }
+    
+    public void onBackPressed() {
+    	if (currentLayout == R.layout.snet_contact) {
+    		Log.d(TAG, "Layout is main");
+        	setContentView(R.layout.snet_main);
+            
+            SNetDB461 database = null;
+            // Attempts to set the my and chosenPhoto displays
+            try {
+    			database = new SNetDB461(pathName + "/" + mMyName + "snet.db");
+    			CommunityRecord me = database.COMMUNITYTABLE.readOne(mMyName.toString());
+    			PhotoRecord myPhoto = database.PHOTOTABLE.readOne(me.myPhotoHash);
+    			PhotoRecord chosenPhoto = database.PHOTOTABLE.readOne(me.chosenPhotoHash);
+    			if (myPhoto == null) {
+    				Log.w(TAG, "Photo record for myPhoto is null");
+    			} else {
+    				((ImageView)findViewById(R.id.mypicture)).setImageBitmap(BitmapLoader.loadBitmap(myPhoto.file.getCanonicalPath(), 100, 100));
+    			}
+    			if (chosenPhoto == null) {
+    				Log.w(TAG, "Photo record for chosenPhoto is null");
+    			} else {
+    				((ImageView)findViewById(R.id.chosenpicture)).setImageBitmap(BitmapLoader.loadBitmap(chosenPhoto.file.getCanonicalPath(), 100, 100));
+    			}
+    			
+    		} catch (DB461Exception e) {
+    			Log.e(TAG, "Had trouble with the database");
+    		} catch (IOException e) { 
+    			Log.e(TAG, "Couldn't get the filename for the photos to work");
+    		} finally {
+    			if (database != null) {
+    				database.discard();
+    			}
+    		}
+    		currentLayout = R.layout.snet_main;
+    	} else {
+    		super.onBackPressed();
+    	}
     }
     
     public void onItemSelected(AdapterView<?> parent, View view, 
@@ -292,6 +339,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
         // An item was selected. Store that item
     	currentSelection = (String)parent.getItemAtPosition(pos);
     	Log.d(TAG, "User selected: " + currentSelection);
+    	ContextManager.setActivityContext(this);
     }
 
     public void onNothingSelected(AdapterView<?> parent) {
@@ -345,6 +393,10 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     	Log.d(TAG, "FixDB selected");
     	try {
 			snet.fixDB(mGallery);
+			// Then tries to update the gallery viewer (otherwise the gallery won't recognize it is different)
+            sendBroadcast(new Intent(
+                Intent.ACTION_MEDIA_MOUNTED,
+                Uri.parse("file://" + Environment.getExternalStorageDirectory())));
 		} catch (DB461Exception e) {
 			Log.e(TAG, "We got an error from fixDB: " + e.getMessage());
 		}

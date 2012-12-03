@@ -21,7 +21,7 @@
         android:layout_marginTop="42dp"
 		android:onClick="onFriend"
         android:text="@string/snet_friend" />
-
+
     <Button
         android:id="@+id/unfriendbutton"
         android:layout_width="wrap_content"
@@ -29,8 +29,8 @@
         android:layout_alignBaseline="@+id/friendbutton"
         android:layout_alignBottom="@+id/friendbutton"
         android:layout_marginLeft="16dp"
-        android:layout_toRightOf="@+id/memberspinner"
-		android:onClick="onUnfriend"
+        android:layout_toRightOf="@+id/contactbutton"
+        android:onClick="onUnfriend"
         android:text="@string/snet_unfriend" />
 
     <Button
