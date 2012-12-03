@@ -49,6 +49,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
 	
 	private String currentSelection = "";
 	
+	private int currentLayout = R.layout.snet_main;
 	/**
 	 * The infrastructure requires a parameterless, public constructor for all NetLoadableAndroidApp's.
 	 */
@@ -88,7 +89,13 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.d(TAG, "onCreate");
-        setContentView(R.layout.snet_main);
+        
+    }
+    
+    //  Allows for code reuse
+    private void setLayoutMain () {
+    	Log.d(TAG, "Layout is main");
+    	setContentView(R.layout.snet_main);
         
         SNetDB461 database = null;
         // Attempts to set the my and chosenPhoto displays
@@ -117,9 +124,33 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
 				database.discard();
 			}
 		}
-        
-        // save my context so that this app can retrieve it later
-        ContextManager.setActivityContext(this);
+    }
+    
+    // Allows for code reuse
+    private void setLayoutContact() {
+    	setContentView(R.layout.snet_contact);
+    	currentLayout = R.layout.snet_contact;
+                
+        List<CharSequence> names = new ArrayList<CharSequence>();
+        try {
+			SNetDB461 database = new SNetDB461(pathName + "/" + mMyName + "snet.db");
+			RecordSet<CommunityRecord> records = database.COMMUNITYTABLE.readAll();
+			for(CommunityRecord rec: records) {
+				Log.d(TAG, "Adding value " + rec.name.toString() + " to the list");
+				names.add(rec.name.toString());
+			}
+			// Populates the list of names with those included in the community
+			database.discard();
+		} catch (DB461Exception e) {
+			Log.e(TAG, "Failed to access the database");
+		}
+		// Sets up the spinner
+        Spinner spinner = (Spinner)findViewById(R.id.memberspinner);
+        ArrayAdapter<CharSequence> adapter = new ArrayAdapter<CharSequence>(this, android.R.layout.simple_spinner_item, names);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        spinner.setOnItemSelectedListener(this);
+        Log.d(TAG, "Setting the spinner");
     }
     
     /**
@@ -129,22 +160,30 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     protected void onStart() {
     	super.onStart();
         Log.d(TAG, "onStart");
-    	// TODO figure out what else needs to happen in here (if anything) as this can be called with either of the snet layouts as the content view
+        SharedPreferences settings = getSharedPreferences(PREFS_NAME, 3);
+        if (settings.getInt("currentLayout", currentLayout) == R.layout.snet_main) {
+        	setLayoutMain();
+        	currentLayout = R.layout.snet_main;
+        } else {
+        	Log.d(TAG, "Layout is contact");
+        	setLayoutContact();
+        	currentLayout = R.layout.snet_contact;
+        }
+        // save my context so that this app can retrieve it later
+        ContextManager.setActivityContext(this);
     }
     
     /**
-     * Called whenever Anroid infrastructure feels like it; for example, if the user hits the Home button.
+     * Called whenever Android infrastructure feels like it; for example, if the user hits the Home button.
      */
     @Override
     protected void onStop() {
     	super.onStop();
     	Log.d(TAG, "onStop");
     	
-    	SharedPreferences settings = getSharedPreferences(PREFS_NAME, 0);
-    	SharedPreferences.Editor editor = settings.edit(); /* TODO replace this with relevant data
-    	editor.putString("serverip", mServerIP);
-    	editor.putString("serverport", mServerPort);
-    	editor.putString("message", mMsg); */
+    	SharedPreferences settings = getSharedPreferences(PREFS_NAME, 3);
+    	SharedPreferences.Editor editor = settings.edit(); 
+    	editor.putInt("currentLayout", currentLayout);
     	editor.commit();
     }
     
@@ -197,7 +236,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
             	    fOut.flush();
             	    fOut.close();
             	    // Writes the bitmap to the file
-                    snet.newMyPhoto(mMyName, filename, mGallery);
+                    snet.newMyPhoto(mMyName, file + ".jpg", mGallery);
                     // Then attempts to update the MyPhoto field for the user.
                     
                     // Then tries to update the gallery viewer
@@ -232,12 +271,14 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
         		int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
         		String filePath = cursor.getString(columnIndex);
         		cursor.close();
-        	
         		try {
-        			snet.setChosenPhoto(mMyName, filePath, mGallery);
+        			filePath = filePath.substring(mGallery.getCanonicalPath().length());
+            		snet.setChosenPhoto(mMyName, filePath, mGallery);
         			// Tries to set the selected photo as the user's chosen photo
         		} catch (DB461Exception e) {
         			Log.e(TAG, "We failed to set the selected photo as the new chosen photo");
+        		} catch (IOException e) {
+        			Log.e(TAG, "We failed to get the path name");
         		}
         	} else if (resultCode == RESULT_CANCELED) { 
         		Log.d(TAG, "User cancelled selected a new chosen photo");
@@ -260,31 +301,18 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
      */
     public void onExchange (View b) {
     	Log.d(TAG, "Update Pictures selected");
-    	setContentView(R.layout.snet_contact);
-                
-        List<CharSequence> names = new ArrayList<CharSequence>();
-        try {
-			SNetDB461 database = new SNetDB461(pathName + "/" + mMyName + "snet.db");
-			RecordSet<CommunityRecord> records = database.COMMUNITYTABLE.readAll();
-			for(CommunityRecord rec: records) {
-				Log.d(TAG, "Adding value " + rec.name.toString() + " to the list");
-				names.add(rec.name.toString());
-			}
-			// Populates the list of names with those included in the community
-			database.discard();
-		} catch (DB461Exception e) {
-			Log.e(TAG, "Failed to access the database");
-		}
-		// Sets up the spinner
-        Spinner spinner = (Spinner)findViewById(R.id.memberspinner);
-        ArrayAdapter<CharSequence> adapter = new ArrayAdapter<CharSequence>(this, android.R.layout.simple_spinner_item, names);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-        spinner.setOnItemSelectedListener(this);
-        Log.d(TAG, "Setting the spinner");
+    	setLayoutContact();
         // save my context so that this app can retrieve it later
-    	// This doesn't seem to have a visible effect, should I leave it in? TODO
-        ContextManager.setActivityContext(this);        
+        ContextManager.setActivityContext(this);
+    }
+    
+    public void onBackPressed() {
+    	if (currentLayout == R.layout.snet_contact) {
+    		setLayoutMain();
+    		currentLayout = R.layout.snet_main;
+    	} else {
+    		super.onBackPressed();
+    	}
     }
     
     public void onItemSelected(AdapterView<?> parent, View view, 
@@ -292,6 +320,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
         // An item was selected. Store that item
     	currentSelection = (String)parent.getItemAtPosition(pos);
     	Log.d(TAG, "User selected: " + currentSelection);
+    	ContextManager.setActivityContext(this);
     }
 
     public void onNothingSelected(AdapterView<?> parent) {
@@ -345,6 +374,10 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     	Log.d(TAG, "FixDB selected");
     	try {
 			snet.fixDB(mGallery);
+			// Then tries to update the gallery viewer (otherwise the gallery won't recognize it is different)
+            sendBroadcast(new Intent(
+                Intent.ACTION_MEDIA_MOUNTED,
+                Uri.parse("file://" + Environment.getExternalStorageDirectory())));
 		} catch (DB461Exception e) {
 			Log.e(TAG, "We got an error from fixDB: " + e.getMessage());
 		}
