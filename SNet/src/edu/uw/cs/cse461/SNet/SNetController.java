@@ -36,6 +36,13 @@ import edu.uw.cs.cse461.util.Log;
  */
 public class SNetController extends NetLoadableService implements HTTPProviderInterface {
 	private static final String TAG="SNetController";
+
+	/**
+	 * @return true if this is a valid generation number
+	 */
+	private static boolean isValidGenNum(int gen) {
+		return (gen <= (int)NetBase.theNetBase().now() + 10);
+	}
 	
 	private RPCCallableMethod fetchUpdates;
 	private RPCCallableMethod fetchPhoto;
@@ -292,6 +299,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			} else {
 				throw new IllegalArgumentException("Photo type of "+photoType+" not a valid value");
 			}
+			cRecord.generation = Math.max((int)NetBase.theNetBase().now(), cRecord.generation + 1);
 			db.COMMUNITYTABLE.write(cRecord);
 
 
@@ -400,26 +408,27 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			keysIter = communityUpdates.keys();
 			while (keysIter.hasNext()) {
 				String name = keysIter.next();
-				CommunityRecord record = db.COMMUNITYTABLE.readOne(name);
-				if (record == null) {
+				CommunityRecord cRecord = db.COMMUNITYTABLE.readOne(name);
+				if (cRecord == null) {
 					Log.i(TAG, "creating new db record for "+name);
-					record = db.COMMUNITYTABLE.createRecord();
-					record.name = new DDNSFullName(name);
-					record.isFriend = false;
+					cRecord = db.COMMUNITYTABLE.createRecord();
+					cRecord.name = new DDNSFullName(name);
+					cRecord.isFriend = false;
 				}
 				JSONObject recordUpdate = communityUpdates.getJSONObject(name);		
-				// check if the updated record is really more recent than ours
-				if (record.generation <= recordUpdate.getInt("generation")) {
-					Log.v(TAG, "old record for "+name+" was "+record);
+				// check if the updated record is really more recent than ours (but not from THE FUTURE)
+				int genNum = recordUpdate.getInt("generation");
+				if (cRecord.generation <= genNum && isValidGenNum(genNum)) {
+					Log.v(TAG, "old record for "+name+" was "+cRecord);
 					Log.d(TAG, "updating record for "+name+" to "+recordUpdate);
-					record.generation = recordUpdate.getInt("generation");
-					record.myPhotoHash = recordUpdate.getInt("myphotohash");
-					record.chosenPhotoHash = recordUpdate.getInt("chosenphotohash");
+					cRecord.generation = genNum;
+					cRecord.myPhotoHash = recordUpdate.getInt("myphotohash");
+					cRecord.chosenPhotoHash = recordUpdate.getInt("chosenphotohash");
 				} else {
 					// something went wrong
 					Log.i(TAG, "fetchUpdates returned record for "+name+", but was not more recent than ours");
 				}
-				db.COMMUNITYTABLE.write(record);
+				db.COMMUNITYTABLE.write(cRecord);
 			}
 
 			// iterate over photos and retrieve data for each
@@ -471,19 +480,22 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			CommunityRecord myVals = database.COMMUNITYTABLE.readOne(name);
 			JSONObject theirVals = community.getJSONObject(name);		
 			int genNum = theirVals.getInt("generation");
-			if (myVals == null) {
+			// if I don't have a record, or their record is better (but not from THE FUTURE), then update mine
+			if (myVals == null || (myVals.generation < genNum && isValidGenNum(genNum))) {
 				Log.d(TAG, "We don't currently have a record for: " + name);
-				// I don't have this member of the community, so I should store the data for later
-				myVals = database.COMMUNITYTABLE.createRecord();
-				myVals.name = new DDNSFullName(name);
+				if (myVals == null) {
+					// I don't have this member of the community, so I should store the data for later
+					myVals = database.COMMUNITYTABLE.createRecord();
+					myVals.name = new DDNSFullName(name);
+					myVals.isFriend = false;
+				}
 				myVals.generation = genNum;
-				myVals.isFriend = false;
 				myVals.myPhotoHash = theirVals.getInt("myphotohash");
 				myVals.chosenPhotoHash = theirVals.getInt("chosenphotohash");
 				database.COMMUNITYTABLE.write(myVals);
-			} else if (genNum < myVals.generation) {
-				Log.d(TAG, "Our record is more up to date than theirs for: " + name);
+			} else if (myVals != null && myVals.generation > genNum) {
 				// Their data is not up to date, so we need to put our information into the updates to send
+				Log.d(TAG, "Our record is more up to date than theirs for: " + name);
 				JSONObject update = new JSONObject();
 				update.put("generation", myVals.generation);
 				update.put("myphotohash", myVals.myPhotoHash);
@@ -503,13 +515,6 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 					}
 				}
 				communityupdates.put(name, update);
-			} else if (genNum > myVals.generation) {
-				// My data is not up to date, so I should update it.
-				Log.d(TAG, "Their record is more up to date than ours for: " + name);
-				myVals.generation = genNum;
-				myVals.myPhotoHash = theirVals.getInt("myphotohash");
-				myVals.chosenPhotoHash = theirVals.getInt("chosenphotohash");
-				database.COMMUNITYTABLE.write(myVals);
 			} // If our generation numbers are the same, do nothing
 		}
 		// Traverses all of our community records to see if we know about any member they do not.
