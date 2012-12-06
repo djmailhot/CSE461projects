@@ -1,6 +1,7 @@
 package edu.uw.cs.cse461.SNet;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
@@ -602,21 +603,21 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 	 * Caller side of fetchPhoto (fetch one photo).
 	 * @throws Exception
 	 */
-	synchronized private File fetchPhotoAndSave(String ip, int port, PhotoRecord pRecord) {
+	synchronized private void fetchPhotoAndSave(String ip, int port, PhotoRecord pRecord) {
 		FileOutputStream outputStream = null;
 		try {
 			// open a stream to the file
 			outputStream = new FileOutputStream(pRecord.file);
 
 			JSONObject args = new JSONObject()
-					.put("photohash", photoHash)
+					.put("photohash", pRecord.hash)
 					.put("maxlength", FILE_BUFFER_MAX_LENGTH);
 
-			int totalBytesRead = 0;
+			int requestOffset = 0;
 			// break when the response indicates the file is finished
 			while (true) {
 				// update the arguments offset
-				args.put("offset", totalBytesRead)
+				args.put("offset", requestOffset);
 
 				// send off the RPC call
 				JSONObject response = RPCCall.invoke(ip, port, "snet", "fetchPhoto", args);
@@ -632,26 +633,31 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				}
 
 				// check for crazies
-				if (photoHash != responsePhotoHash || argOffset != responseOffset) {
+				if (pRecord.hash != responsePhotoHash || requestOffset != responseOffset) {
 					// SOMETHING WENT REALLY WRONG
-					throw exception
 				}
 
-				outputStream.write(decodedData, responseOffset, responseLength)
+				outputStream.write(decodedData, responseOffset, responseLength);
 				
 				// stream write responseLength number of bytes to the file
-				totalBytesRead += responseLength;
+				requestOffset += responseLength;
 
 			}
 
 		} catch (FileNotFoundException e) {
-			Log.w(TAG, "Photo file not found when fetching photo "+pRecord.file.getCanonicalPath());
+			Log.w(TAG, "Photo file not found when fetching photo");
 		} catch (Exception e) {
 
 		} finally {
-			if (outputStream != null) { outputStream.close(); }
+			if (outputStream != null) {
+				try {
+					outputStream.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
 		}
-		return new File("E");
 	}
 	/**
 	 * Callee side of fetchPhoto (fetch one photo).  To fetch an image file, call this
