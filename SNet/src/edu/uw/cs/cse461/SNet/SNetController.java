@@ -769,6 +769,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		result.put("offset", offset);
 		// We want this information in our result to return whether we have the information or not.
 		if (rec != null) {
+			Log.i(TAG, "We have a PhotoRecord for this hash");
 			File file = rec.file;
 			if (file == null) {
 				Log.e(TAG, "We have a PhotoRecord with a non-existant file! AAAAAH");
@@ -781,6 +782,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			} else {
 				byte[] unencoded = new byte[maxlength];
 				FileInputStream stream = new FileInputStream(file);
+				Log.i(TAG, "We are reading the file " + file.getName());
 				// Gets the file
 				long skipped = 0;
 				while (skipped < offset - 1) {
@@ -791,12 +793,9 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				result.put("length", length);
 				String photoData = Base64.encodeBytes(unencoded, 0, length);
 				result.put("photoData", photoData);
+				Log.d(TAG, "We have encoded the data");
 			}
 			
-			
-			// TODO Fetch the file found in the PhotoRecord.  Take the bytes of the file and encode(source, offset, length).
-			// Need to check on the length myself before calling encode so I don't run off the edge (the user will not expect this)
-			// Then put the encoded bytes into the result object as "photoData"
 		} else {
 			result.put("length", 0);
 		}
