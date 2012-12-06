@@ -460,7 +460,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 					int oldHash = cRecord.myPhotoHash;
 					int newHash = recordUpdate.getInt("myphotohash");
 					if (oldHash != newHash) {
-						incrementPhotoDB(db, newHash, (""+newHash));
+						incrementPhotoDB(db, newHash, (newHash+".jpg"));
 						decrementPhotoDB(db, oldHash);
 
 						cRecord.myPhotoHash = newHash;
@@ -468,7 +468,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 					oldHash = cRecord.chosenPhotoHash;
 					newHash = recordUpdate.getInt("chosenphotohash");
 					if (oldHash != newHash) {
-						incrementPhotoDB(db, newHash, (""+newHash));
+						incrementPhotoDB(db, newHash, (newHash+".jpg"));
 						decrementPhotoDB(db, oldHash);
 
 						cRecord.chosenPhotoHash = newHash;
