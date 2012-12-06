@@ -132,7 +132,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 		try {
 			// Gets the config resolve limits and timeout for registers
 			resolvelimit = config.getAsInt("ddns.resolvettl");
-			registerTimeout = 1000*config.getAsInt("ddnsresolver.cachettl"); // convert to milliseconds
+			registerTimeout = config.getAsInt("ddnsresolver.cachettl"); // convert to milliseconds
 		} catch (NoSuchFieldException e) {
 			resolvelimit = 1000; // arbitrary default value
 			registerTimeout = 1000; // arbitrary default value
@@ -418,7 +418,7 @@ public class DDNSService extends NetLoadableService implements HTTPProviderInter
 				synchronized(rec) { 
 					// ought to prevent some race conditions between looking at a node's timestamp and that node becoming unregistered
 					// although it will not be possible to prevent all (case where unregister occurs shortly after resolve has returned, etc.)
-					if (!timers.containsKey(rec.name) || timers.get(rec.name) + registerTimeout < System.currentTimeMillis()) {
+					if (!timers.containsKey(rec.name) || timers.get(rec.name) + registerTimeout < (System.currentTimeMillis() / 1000)) {
 						// If there is no registration time stamp or the timestamp is out of date, then we have found a node 
 						// without a recently updated address and we should pass this on.
 						node = exceptionTranslation(new DDNSNoAddressException(name));
