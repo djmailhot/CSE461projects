@@ -25,6 +25,7 @@ import edu.uw.cs.cse461.Net.RPC.RPCService;
 import edu.uw.cs.cse461.SNet.SNetDB461.CommunityRecord;
 import edu.uw.cs.cse461.SNet.SNetDB461.Photo;
 import edu.uw.cs.cse461.SNet.SNetDB461.PhotoRecord;
+import edu.uw.cs.cse461.util.Base64;
 import edu.uw.cs.cse461.util.Log;
 
 
@@ -433,8 +434,10 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 
 			// iterate over photos and retrieve data for each
 			JSONArray photoHashes = response.getJSONArray("photoupdates");
-	
-		
+			for (int i=0; i<photoHashes.length(); i++) {
+				int photoHash = photoHashes.getInt(i);
+				File photoFile = fetchPhotoAndSave(ddnsResult.ip(), ddnsResult.port(), photoHash);
+			}
 
 		} catch(DDNSException e) {
 			e.printStackTrace();
@@ -570,17 +573,32 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 	 * Caller side of fetchPhoto (fetch one photo).
 	 * @throws Exception
 	 */
-	synchronized private JSONObject fetchPhotoCaller(String ip, int port, int photoHash) throws Exception {
-		
+	synchronized private File fetchPhotoAndSave(String ip, int port, int photoHash) {
 
-		JSONObject args = new JSONObject()
-				.put("photohash", photoHash)
-				.put("offset", 0)
-				.put("maxlength", 100);
+		try {
+			int totalRead = 0;
 
-		JSONObject response = RPCCall.invoke(ip, port, "snet", "fetchPhoto", args);
+			int argOffset = 0;
+			JSONObject args = new JSONObject()
+					.put("photohash", photoHash)
+					.put("offset", 0)
+					.put("maxlength", 100);
 
-		return response;
+			JSONObject response = RPCCall.invoke(ip, port, "snet", "fetchPhoto", args);
+			int responseOffset = response.getInt("offset");
+			int responseLength = response.getInt("length");
+			String encodedData = response.getString("encodedData");
+			byte[] decodedData = Base64.decode(encodedData);
+
+			if (argOffset != responseOffset) {
+				// SOMETHING WENT REALLY WRONG
+			}
+
+
+		} catch (Exception e) {
+
+		}
+		return new File("E");
 	}
 	/**
 	 * Callee side of fetchPhoto (fetch one photo).  To fetch an image file, call this
