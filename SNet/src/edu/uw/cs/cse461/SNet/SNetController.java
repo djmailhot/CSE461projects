@@ -633,6 +633,8 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			// open a stream to the file
 			outputStream = new FileOutputStream(pRecord.file);
 
+			Log.v(TAG, "Fetching photo "+pRecord.file.getCanonicalPath());
+
 			JSONObject args = new JSONObject()
 					.put("photohash", pRecord.hash)
 					.put("maxlength", FILE_BUFFER_MAX_LENGTH);
@@ -643,6 +645,8 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				// update the arguments offset
 				args.put("offset", requestOffset);
 
+				Log.v(TAG, "Sending fetchPhoto RPC call with args "+args);
+
 				// send off the RPC call
 				JSONObject response = RPCCall.invoke(ip, port, "snet", "fetchPhoto", args);
 				int responsePhotoHash = response.getInt("photohash");
@@ -650,6 +654,8 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				int responseLength = response.getInt("length");
 				String encodedData = response.getString("encodedData");
 				byte[] decodedData = Base64.decode(encodedData);
+
+				Log.v(TAG, "fetchPhoto RPC call response of "+args);
 
 				// The file should be finished transferring
 				if (responseLength == 0) {
@@ -667,6 +673,8 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				requestOffset += responseLength;
 
 			}
+
+			Log.v(TAG, "fetchPhoto save complete");
 
 		} catch (FileNotFoundException e) {
 			Log.w(TAG, "Photo file not found when fetching photo");
@@ -693,15 +701,17 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 	 * @throws Exception
 	 */
 	synchronized public JSONObject fetchPhotoCallee(JSONObject args) throws Exception {
-		int hash = args.getInt("photoHash");
+		int hash = args.getInt("photohash");
 		int maxlength = args.getInt("maxlength");
 		int offset = args.getInt("offset");	
 		// get all the actual args
+
+		Log.v(TAG, "fetchPhoto RPC request with args "+args);
 		
 		SNetDB461 database = new SNetDB461(mDBName); // The database of info I have
 		PhotoRecord rec = database.PHOTOTABLE.readOne(hash);
 		JSONObject result = new JSONObject();
-		result.put("photoHash", hash);
+		result.put("photohash", hash);
 		result.put("offset", offset);
 		// We want this information in our result to return whether we have the information or not.
 		if (rec != null) {
@@ -736,6 +746,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		} else {
 			result.put("length", 0);
 		}
+		Log.v(TAG, "fetchPhoto RPC request returning result of "+result);
 		return result;
 	}
 
