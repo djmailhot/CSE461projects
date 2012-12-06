@@ -581,6 +581,8 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		JSONArray photoupdates = new JSONArray(); // Photos that I store that they either wanted or may want because the community has changed
 		JSONObject communityupdates = new JSONObject(); // Community members for which I have a better generation number.
 		
+		Map<Integer, Integer> photoRefCounts = new HashMap<Integer, Integer>();
+		
 		SNetDB461 database = new SNetDB461(mDBName); // The database of info I have
 		Iterator<String> keys = community.keys();
 		Log.v(TAG, "assumed that the iterator contains strings");
@@ -600,9 +602,35 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 					myVals.name = new DDNSFullName(name);
 					myVals.isFriend = false;
 				}
-				myVals.generation = genNum;
-				myVals.myPhotoHash = theirVals.getInt("myphotohash");
-				myVals.chosenPhotoHash = theirVals.getInt("chosenphotohash");
+				myVals.generation = genNum; // TODO Creation of records should not happen
+
+				
+				int oldHash = myVals.myPhotoHash;
+				int newHash = theirVals.getInt("myphotohash");
+				if (oldHash != newHash) {
+					
+					Integer refCount = photoRefCounts.get(oldHash);
+					photoRefCounts.put(oldHash, (refCount == null ? -1 : refCount - 1) );
+
+					refCount = photoRefCounts.get(newHash);
+					photoRefCounts.put(newHash, (refCount == null ? 1 : refCount + 1) );
+
+					myVals.myPhotoHash = newHash;
+				}
+				oldHash = myVals.chosenPhotoHash;
+				newHash = theirVals.getInt("chosenphotohash");
+				if (oldHash != newHash) {
+
+					Integer refCount = photoRefCounts.get(oldHash);
+					photoRefCounts.put(oldHash, (refCount == null ? -1 : refCount - 1) );
+
+					refCount = photoRefCounts.get(newHash);
+					photoRefCounts.put(newHash, (refCount == null ? 1 : refCount + 1) );
+
+					myVals.chosenPhotoHash = newHash;
+				}
+				
+				
 				database.COMMUNITYTABLE.write(myVals);
 			} else if (myVals != null && myVals.generation > genNum) {
 				// Their data is not up to date, so we need to put our information into the updates to send
@@ -628,6 +656,34 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				communityupdates.put(name, update);
 			} // If our generation numbers are the same, do nothing
 		}
+		
+		for (Integer hash : photoRefCounts.keySet()) {
+			Integer refCount = photoRefCounts.get(hash);
+			
+			PhotoRecord pRecord = database.PHOTOTABLE.readOne(hash);
+			if (pRecord != null) {
+				pRecord.refCount += refCount;
+
+			} 
+			// else photoUpdate doesn't have photo dataS
+
+			// if we have a pRecord, write it or delete it
+			if (pRecord != null) {
+				if (pRecord.refCount > 0) {
+					// write it
+					database.PHOTOTABLE.write(pRecord);
+				} else {
+					// delete it
+					database.PHOTOTABLE.delete(pRecord.hash);
+					Log.i(TAG, "Deleted old photo record for "+pRecord.file);
+					boolean deleted = pRecord.file.delete();
+					if (!deleted) {
+						Log.w(TAG, "photo file "+pRecord.file.getCanonicalPath()+" failed to be deleted when refCount reached 0");
+					}
+				}
+			}
+		}
+		
 		// Traverses all of our community records to see if we know about any member they do not.
 		RecordSet<CommunityRecord> myCom = database.COMMUNITYTABLE.readAll();
 		for (CommunityRecord rec : myCom) {
