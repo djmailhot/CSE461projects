@@ -33,6 +33,7 @@ import edu.uw.cs.cse461.SNet.SNetDB461.CommunityRecord;
 import edu.uw.cs.cse461.SNet.SNetDB461.Photo;
 import edu.uw.cs.cse461.SNet.SNetDB461.PhotoRecord;
 import edu.uw.cs.cse461.util.Base64;
+import edu.uw.cs.cse461.util.ConfigManager;
 import edu.uw.cs.cse461.util.Log;
 
 
@@ -44,7 +45,7 @@ import edu.uw.cs.cse461.util.Log;
  */
 public class SNetController extends NetLoadableService implements HTTPProviderInterface {
 	private static final String TAG="SNetController";
-	private static final int FILE_BUFFER_MAX_LENGTH = (1 << 15); // file buffer length of 32Kb.
+	private static final int FETCH_PHOTO_DEFAULT_MAX_LENGTH = (1 << 15); // file buffer length of 32Kb.
 
 	/**
 	 * @return true if this is a valid generation number
@@ -60,6 +61,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 	 * A full path name to the sqlite database.
 	 */
 	private String mDBName;
+	private int fetchPhotoMaxLength;
 	
 	private DDNSResolverService ddnsResolverService;
 	
@@ -159,6 +161,11 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			RPCService rpcService = (RPCService)NetBase.theNetBase().getService("rpc");
 			rpcService.registerHandler(loadablename(), "fetchUpdates", fetchUpdates );
 			rpcService.registerHandler(loadablename(), "fetchPhoto", fetchPhoto );
+			
+			ConfigManager config = NetBase.theNetBase().config();
+
+			this.fetchPhotoMaxLength = Integer.parseInt(config.getProperty("snet.fetchphoto_maxlength"));
+			
 			
 		} catch (Exception e) {
 			String msg = "SNet constructor caught exception: " + e.getMessage();
@@ -747,7 +754,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 
 			JSONObject args = new JSONObject()
 					.put("photohash", pRecord.hash)
-					.put("maxlength", FILE_BUFFER_MAX_LENGTH);
+					.put("maxlength", fetchPhotoMaxLength);
 
 			int requestOffset = 0;
 			// break when the response indicates the file is finished
