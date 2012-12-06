@@ -759,10 +759,11 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 
 				// send off the RPC call
 				JSONObject response = RPCCall.invoke(ip, port, "snet", "fetchPhoto", args);
+				Log.d(TAG, "DAIN IS A FOOOOOOO and bakes amazing things");
 				int responsePhotoHash = response.getInt("photohash");
 				int responseOffset = response.getInt("offset");
 				int responseLength = response.getInt("length");
-				String encodedData = response.getString("encodedData");
+				String encodedData = response.getString("photodata");
 				byte[] decodedData = Base64.decode(encodedData);
 
 				Log.v(TAG, "fetchPhoto RPC call response of "+args);
@@ -789,7 +790,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		} catch (FileNotFoundException e) {
 			Log.w(TAG, "Photo file not found when fetching photo");
 		} catch (Exception e) {
-
+			e.printStackTrace();
 		} finally {
 			if (outputStream != null) {
 				try {
@@ -848,7 +849,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				// Reads the appropriate file bytes into the array
 				result.put("length", length);
 				String photoData = Base64.encodeBytes(unencoded, 0, length);
-				result.put("photoData", photoData);
+				result.put("photodata", photoData);
 				Log.d(TAG, "We have encoded the data");
 			}
 			
