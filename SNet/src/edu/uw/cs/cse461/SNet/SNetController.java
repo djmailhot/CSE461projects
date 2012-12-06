@@ -763,22 +763,24 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				int responsePhotoHash = response.getInt("photohash");
 				int responseOffset = response.getInt("offset");
 				int responseLength = response.getInt("length");
+				// The file should be finished transferring
+				if (responseLength == 0) {
+					break;
+				}
+				
 				String encodedData = response.getString("photodata");
 				byte[] decodedData = Base64.decode(encodedData);
 
 				Log.v(TAG, "fetchPhoto RPC call response of "+args);
 
-				// The file should be finished transferring
-				if (responseLength == 0) {
-					break;
-				}
+				
 
 				// check for crazies
 				if (pRecord.hash != responsePhotoHash || requestOffset != responseOffset) {
 					// SOMETHING WENT REALLY WRONG
 				}
 
-				outputStream.write(decodedData, responseOffset, responseLength);
+				outputStream.write(decodedData, 0, responseLength);
 				
 				// stream write responseLength number of bytes to the file
 				requestOffset += responseLength;
