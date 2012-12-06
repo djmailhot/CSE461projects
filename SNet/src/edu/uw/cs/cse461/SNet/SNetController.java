@@ -1,6 +1,7 @@
 package edu.uw.cs.cse461.SNet;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
 
@@ -37,6 +38,7 @@ import edu.uw.cs.cse461.util.Log;
  */
 public class SNetController extends NetLoadableService implements HTTPProviderInterface {
 	private static final String TAG="SNetController";
+	private static final int FILE_BUFFER_MAX_LENGTH = (1 << 15); // file buffer length of 32Kb.
 
 	/**
 	 * @return true if this is a valid generation number
@@ -183,13 +185,34 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 	/**
 	 * This method supports the manual setting of a user's generation number.  It is probably not useful
 	 * in building the SNet application per se, but can be useful in debugging tools you might write.
+	 * 
+	 * If no previous generation number, return -1
 	 * @param memberName Name of the member whose generation number you want to set
 	 * @param gen The value the generation number should be set to.
 	 * @return The old value of the member's generation number
 	 * @throws DB461Exception  Member doesn't exist in community db, or some unanticipated exception occurred.
 	 */
 	synchronized public int setGenerationNumber(DDNSFullNameInterface memberName, int gen) throws DB461Exception {
-		return -1;
+		SNetDB461 db = null;
+		int old = -1;
+		try {
+			db = new SNetDB461(mDBName);
+			CommunityRecord record = db.COMMUNITYTABLE.readOne(memberName.toString());
+			// if the member does not exist
+			if (record == null) {
+				String msg = "Member "+memberName+ " not found when setting generation number";
+				Log.e(TAG, msg);
+				throw new DB461Exception(msg);
+			}
+			old = record.generation;
+			record.generation = gen;
+			db.COMMUNITYTABLE.write(record);
+		} finally {
+			if (db != null) {
+				db.discard();
+			}
+		}
+		return old;
 	}
 
 	/**
@@ -436,7 +459,13 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			JSONArray photoHashes = response.getJSONArray("photoupdates");
 			for (int i=0; i<photoHashes.length(); i++) {
 				int photoHash = photoHashes.getInt(i);
-				File photoFile = fetchPhotoAndSave(ddnsResult.ip(), ddnsResult.port(), photoHash);
+				PhotoRecord pRecord = db.PHOTOTABLE.readOne(photoHash);
+
+				if (pRecord != null) {
+					File photoFile = fetchPhotoAndSave(ddnsResult.ip(), ddnsResult.port(), pRecord);
+				} else {
+					Log.w(TAG, "Photo can't be updated because no Photo DB entry for its hash: "+photoHash);
+				}
 			}
 
 		} catch(DDNSException e) {
@@ -573,30 +602,54 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 	 * Caller side of fetchPhoto (fetch one photo).
 	 * @throws Exception
 	 */
-	synchronized private File fetchPhotoAndSave(String ip, int port, int photoHash) {
-
+	synchronized private File fetchPhotoAndSave(String ip, int port, PhotoRecord pRecord) {
+		FileOutputStream outputStream = null;
 		try {
-			int totalRead = 0;
+			// open a stream to the file
+			outputStream = new FileOutputStream(pRecord.file);
 
-			int argOffset = 0;
 			JSONObject args = new JSONObject()
 					.put("photohash", photoHash)
-					.put("offset", 0)
-					.put("maxlength", 100);
+					.put("maxlength", FILE_BUFFER_MAX_LENGTH);
 
-			JSONObject response = RPCCall.invoke(ip, port, "snet", "fetchPhoto", args);
-			int responseOffset = response.getInt("offset");
-			int responseLength = response.getInt("length");
-			String encodedData = response.getString("encodedData");
-			byte[] decodedData = Base64.decode(encodedData);
+			int totalBytesRead = 0;
+			// break when the response indicates the file is finished
+			while (true) {
+				// update the arguments offset
+				args.put("offset", totalBytesRead)
 
-			if (argOffset != responseOffset) {
-				// SOMETHING WENT REALLY WRONG
+				// send off the RPC call
+				JSONObject response = RPCCall.invoke(ip, port, "snet", "fetchPhoto", args);
+				int responsePhotoHash = response.getInt("photohash");
+				int responseOffset = response.getInt("offset");
+				int responseLength = response.getInt("length");
+				String encodedData = response.getString("encodedData");
+				byte[] decodedData = Base64.decode(encodedData);
+
+				// The file should be finished transferring
+				if (responseLength == 0) {
+					break;
+				}
+
+				// check for crazies
+				if (photoHash != responsePhotoHash || argOffset != responseOffset) {
+					// SOMETHING WENT REALLY WRONG
+					throw exception
+				}
+
+				outputStream.write(decodedData, responseOffset, responseLength)
+				
+				// stream write responseLength number of bytes to the file
+				totalBytesRead += responseLength;
+
 			}
 
-
+		} catch (FileNotFoundException e) {
+			Log.w(TAG, "Photo file not found when fetching photo "+pRecord.file.getCanonicalPath());
 		} catch (Exception e) {
 
+		} finally {
+			if (outputStream != null) { outputStream.close(); }
 		}
 		return new File("E");
 	}
@@ -622,7 +675,16 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		result.put("offset", offset);
 		// We want this information in our result to return whether we have the information or not.
 		if (rec != null) {
-			// TODO
+			File file = rec.file;
+			if (file == null) {
+				Log.e(TAG, "We have a PhotoRecord with a non-existant file! AAAAAH");
+				throw new Exception("I'm sorry, I can't do that, Dave");
+			}
+			byte[] unencoded;
+			
+			// TODO Fetch the file found in the PhotoRecord.  Take the bytes of the file and encode(source, offset, length).
+			// Need to check on the length myself before calling encode so I don't run off the edge (the user will not expect this)
+			// Then put the encoded bytes into the result object as "photoData"
 		} else {
 			result.put("length", 0);
 		}
