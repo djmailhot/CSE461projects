@@ -225,7 +225,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
             	// Sets the image viewed to the bitmap created by the camera
             	((ImageView)findViewById(R.id.mypicture)).setImageBitmap(photoBmp);
             	                
-                // Need to store the file using its hash, then
+                // Need to store the file using its hash
             	int file = photoBmp.hashCode();
             	try {
             		String filename = mGallery.getCanonicalPath() + "/" + file + ".jpg";
@@ -236,7 +236,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
             	    fOut.flush();
             	    fOut.close();
             	    // Writes the bitmap to the file
-                    snet.newMyPhoto(mMyName, file + ".jpg", mGallery);
+                    snet.newMyPhoto(mMyName, filename, mGallery);
                     // Then attempts to update the MyPhoto field for the user.
                     
                     // Then tries to update the gallery viewer

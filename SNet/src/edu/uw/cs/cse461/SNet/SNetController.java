@@ -1,6 +1,7 @@
 package edu.uw.cs.cse461.SNet;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Iterator;
 
@@ -25,6 +26,7 @@ import edu.uw.cs.cse461.Net.RPC.RPCService;
 import edu.uw.cs.cse461.SNet.SNetDB461.CommunityRecord;
 import edu.uw.cs.cse461.SNet.SNetDB461.Photo;
 import edu.uw.cs.cse461.SNet.SNetDB461.PhotoRecord;
+import edu.uw.cs.cse461.util.Base64;
 import edu.uw.cs.cse461.util.Log;
 
 
@@ -278,8 +280,8 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			}
 
 			// compute the photo's hash
-			File photoFile = new File(galleryDir.getCanonicalPath() + File.separatorChar + filename);
-			Log.i(TAG, "Call to set "+photoType+" to "+photoFile.getCanonicalPath());
+			File photoFile = new File(filename);
+			Log.i(TAG, "Call to set "+photoType+" to "+ filename);
 			if (!photoFile.exists()) {
 				// if doesn't exist, exceptionization!
 				String msg = "Photo file "+photoFile.getCanonicalPath()+ " not found when setting new photo";
@@ -630,7 +632,25 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				Log.e(TAG, "We have a PhotoRecord with a non-existant file! AAAAAH");
 				throw new Exception("I'm sorry, I can't do that, Dave");
 			}
-			byte[] unencoded;
+			
+			if (offset > file.length()) {
+				// If the offset asked for is beyond the length of the file, we cannot return anything, so set the length as 0
+				result.put("length", 0);
+			} else {
+				byte[] unencoded = new byte[maxlength];
+				FileInputStream stream = new FileInputStream(file);
+				// Gets the file
+				long skipped = 0;
+				while (skipped < offset - 1) {
+					skipped += stream.skip((offset -1) - skipped);
+				} // Needs to continue skipping until we have reached the offset.
+				int length = stream.read(unencoded);
+				// Reads the appropriate file bytes into the array
+				result.put("length", length);
+				String photoData = Base64.encodeBytes(unencoded, 0, length);
+				result.put("photoData", photoData);
+			}
+			
 			
 			// TODO Fetch the file found in the PhotoRecord.  Take the bytes of the file and encode(source, offset, length).
 			// Need to check on the length myself before calling encode so I don't run off the edge (the user will not expect this)
