@@ -273,7 +273,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
         		cursor.close();
         		try {
         			filePath = filePath.substring(mGallery.getCanonicalPath().length());
-            		snet.setChosenPhoto(mMyName, filePath, mGallery);
+            		snet.setChosenPhoto(mMyName, mGallery.getCanonicalPath() + "/" + filePath, mGallery);
         			// Tries to set the selected photo as the user's chosen photo
         		} catch (DB461Exception e) {
         			Log.e(TAG, "We failed to set the selected photo as the new chosen photo");

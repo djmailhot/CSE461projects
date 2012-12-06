@@ -2,6 +2,8 @@ package edu.uw.cs.cse461.SNet;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
 
@@ -38,6 +40,7 @@ import edu.uw.cs.cse461.util.Log;
  */
 public class SNetController extends NetLoadableService implements HTTPProviderInterface {
 	private static final String TAG="SNetController";
+	private static final int FILE_BUFFER_MAX_LENGTH = (1 << 15); // file buffer length of 32Kb.
 
 	/**
 	 * @return true if this is a valid generation number
@@ -456,8 +459,16 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 
 			// iterate over photos and retrieve data for each
 			JSONArray photoHashes = response.getJSONArray("photoupdates");
-	
-		
+			for (int i=0; i<photoHashes.length(); i++) {
+				int photoHash = photoHashes.getInt(i);
+				PhotoRecord pRecord = db.PHOTOTABLE.readOne(photoHash);
+
+				if (pRecord != null) {
+					fetchPhotoAndSave(ddnsResult.ip(), ddnsResult.port(), pRecord);
+				} else {
+					Log.w(TAG, "Photo can't be updated because no Photo DB entry for its hash: "+photoHash);
+				}
+			}
 
 		} catch(DDNSException e) {
 			e.printStackTrace();
@@ -593,17 +604,61 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 	 * Caller side of fetchPhoto (fetch one photo).
 	 * @throws Exception
 	 */
-	synchronized private JSONObject fetchPhotoCaller(String ip, int port, int photoHash) throws Exception {
-		
+	synchronized private void fetchPhotoAndSave(String ip, int port, PhotoRecord pRecord) {
+		FileOutputStream outputStream = null;
+		try {
+			// open a stream to the file
+			outputStream = new FileOutputStream(pRecord.file);
 
-		JSONObject args = new JSONObject()
-				.put("photohash", photoHash)
-				.put("offset", 0)
-				.put("maxlength", 100);
+			JSONObject args = new JSONObject()
+					.put("photohash", pRecord.hash)
+					.put("maxlength", FILE_BUFFER_MAX_LENGTH);
 
-		JSONObject response = RPCCall.invoke(ip, port, "snet", "fetchPhoto", args);
+			int requestOffset = 0;
+			// break when the response indicates the file is finished
+			while (true) {
+				// update the arguments offset
+				args.put("offset", requestOffset);
 
-		return response;
+				// send off the RPC call
+				JSONObject response = RPCCall.invoke(ip, port, "snet", "fetchPhoto", args);
+				int responsePhotoHash = response.getInt("photohash");
+				int responseOffset = response.getInt("offset");
+				int responseLength = response.getInt("length");
+				String encodedData = response.getString("encodedData");
+				byte[] decodedData = Base64.decode(encodedData);
+
+				// The file should be finished transferring
+				if (responseLength == 0) {
+					break;
+				}
+
+				// check for crazies
+				if (pRecord.hash != responsePhotoHash || requestOffset != responseOffset) {
+					// SOMETHING WENT REALLY WRONG
+				}
+
+				outputStream.write(decodedData, responseOffset, responseLength);
+				
+				// stream write responseLength number of bytes to the file
+				requestOffset += responseLength;
+
+			}
+
+		} catch (FileNotFoundException e) {
+			Log.w(TAG, "Photo file not found when fetching photo");
+		} catch (Exception e) {
+
+		} finally {
+			if (outputStream != null) {
+				try {
+					outputStream.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		}
 	}
 	/**
 	 * Callee side of fetchPhoto (fetch one photo).  To fetch an image file, call this
