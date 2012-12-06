@@ -5,7 +5,11 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -333,7 +337,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		Log.v(TAG, "Attempting to increment record for new photo");
 		// check the db for the new photo
 		PhotoRecord pRecord = db.PHOTOTABLE.readOne(photoHash);
-		if (pRecord == null) {
+		if (pRecord == null && photoFileName != null) {
 			// create a new photo in the db
 			pRecord = db.PHOTOTABLE.createRecord();
 			pRecord.hash = photoHash;
@@ -396,6 +400,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			// Needphotos info glob
 			JSONArray needphotos = new JSONArray();
 
+			Map<Integer, Integer> photoRefCounts = new HashMap<Integer, Integer>();
 			RecordSet<CommunityRecord> communityRecords = db.COMMUNITYTABLE.readAll();
 			for (CommunityRecord cRecord : communityRecords) {
 				JSONObject value = new JSONObject()
@@ -414,12 +419,18 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 					photoHash = cRecord.myPhotoHash;
 					if (pRecord == null && photoHash != 0) {
 						needphotos.put(photoHash);
+
+						Integer refCount = photoRefCounts.get(photoHash);
+						photoRefCounts.put(photoHash, (refCount == null ? 1 : refCount + 1) );
 					}
 					// check the 'chosenPhoto', noting that a hash == 0 means no photo
 					pRecord = db.PHOTOTABLE.readOne(cRecord.chosenPhotoHash);
 					photoHash = cRecord.chosenPhotoHash;
 					if (pRecord == null && photoHash != 0) {
 						needphotos.put(photoHash);
+
+						Integer refCount = photoRefCounts.get(photoHash);
+						photoRefCounts.put(photoHash, (refCount == null ? 1 : refCount + 1) );
 					}
 				}
 			}
@@ -460,16 +471,24 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 					int oldHash = cRecord.myPhotoHash;
 					int newHash = recordUpdate.getInt("myphotohash");
 					if (oldHash != newHash) {
-						incrementPhotoDB(db, newHash, (galleryDir.getCanonicalPath()+ File.separatorChar+newHash+".jpg"));
-						decrementPhotoDB(db, oldHash);
+						
+						Integer refCount = photoRefCounts.get(oldHash);
+						photoRefCounts.put(oldHash, (refCount == null ? -1 : refCount - 1) );
+
+						refCount = photoRefCounts.get(newHash);
+						photoRefCounts.put(newHash, (refCount == null ? 1 : refCount + 1) );
 
 						cRecord.myPhotoHash = newHash;
 					}
 					oldHash = cRecord.chosenPhotoHash;
 					newHash = recordUpdate.getInt("chosenphotohash");
 					if (oldHash != newHash) {
-						incrementPhotoDB(db, newHash, (galleryDir.getCanonicalPath()+ File.separatorChar+newHash+".jpg"));
-						decrementPhotoDB(db, oldHash);
+
+						Integer refCount = photoRefCounts.get(oldHash);
+						photoRefCounts.put(oldHash, (refCount == null ? -1 : refCount - 1) );
+
+						refCount = photoRefCounts.get(newHash);
+						photoRefCounts.put(newHash, (refCount == null ? 1 : refCount + 1) );
 
 						cRecord.chosenPhotoHash = newHash;
 					}
@@ -480,19 +499,54 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				db.COMMUNITYTABLE.write(cRecord);
 			}
 
-			// iterate over photos and retrieve data for each
-			JSONArray photoHashes = response.getJSONArray("photoupdates");
-			for (int i=0; i<photoHashes.length(); i++) {
-				int photoHash = photoHashes.getInt(i);
-				PhotoRecord pRecord = db.PHOTOTABLE.readOne(photoHash);
 
-				if (pRecord != null) {
-					fetchPhotoAndSave(ddnsResult.ip(), ddnsResult.port(), pRecord);
-				} else {
-					Log.w(TAG, "Photo can't be updated because no Photo DB entry for its hash: "+photoHash);
-				}
+			JSONArray photoHashes = response.getJSONArray("photoupdates");
+			Set<Integer> photoHashesSet = new HashSet<Integer>();
+			for (int i=0; i<photoHashes.length(); i++) {
+				photoHashesSet.add(photoHashes.getInt(i));
 			}
 
+
+			for (Integer hash : photoRefCounts.keySet()) {
+				Integer refCount = photoRefCounts.get(hash);
+				
+				PhotoRecord pRecord = db.PHOTOTABLE.readOne(hash);
+				if (pRecord != null) {
+					pRecord.refCount += refCount;
+
+
+				// if not in DB and we have a photoUpdate for it (and the refs to it are positive)
+				} else if (pRecord == null && photoHashesSet.contains(hash) && refCount > 0) {
+					// create a new photo in the db
+					pRecord = db.PHOTOTABLE.createRecord();
+					pRecord.hash = hash;
+					pRecord.refCount = refCount;
+					pRecord.file = new File(galleryDir.getCanonicalPath() + File.separatorChar + hash + ".jpg");
+					Log.v(TAG, "Created new photo record in db");
+
+					// finally, fetch photo data for the photo
+					fetchPhotoAndSave(ddnsResult.ip(), ddnsResult.port(), pRecord);
+				}
+				// else photoUpdate doesn't have photo data
+
+
+				// if we have a pRecord, write it or delete it
+				if (pRecord != null) {
+					if (pRecord.refCount > 0) {
+						// write it
+						db.PHOTOTABLE.write(pRecord);
+					} else {
+						// delete it
+						db.PHOTOTABLE.delete(pRecord.hash);
+						Log.i(TAG, "Deleted old photo record for "+pRecord.file);
+						boolean deleted = pRecord.file.delete();
+						if (!deleted) {
+							Log.w(TAG, "photo file "+pRecord.file.getCanonicalPath()+" failed to be deleted when refCount reached 0");
+						}
+					}
+				}
+			}
+			
 		} catch(DDNSException e) {
 			e.printStackTrace();
 		} catch(JSONException e) {
