@@ -297,21 +297,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			Log.v(TAG, "Computed photo hash of "+photoHash);
 
 
-			Log.v(TAG, "Attempting to increment record for new photo");
-			// check the db for the new photo
-			pRecord = db.PHOTOTABLE.readOne(photoHash);
-			if (pRecord == null) {
-				// create a new photo in the db
-				pRecord = db.PHOTOTABLE.createRecord();
-				pRecord.hash = photoHash;
-				pRecord.refCount = 0;
-				pRecord.file = photoFile;
-				Log.v(TAG, "Created new photo record in db");
-			}
-			// increment the refCount of the new photo
-			pRecord.refCount++;
-			db.PHOTOTABLE.write(pRecord);
-			Log.d(TAG, "New photo record "+pRecord);
+			incrementPhotoDB(db, photoHash, filename);
 
 
 			Log.v(TAG, "Attempting to switch photo hash in member record "+cRecord.name);
@@ -329,27 +315,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			db.COMMUNITYTABLE.write(cRecord);
 
 
-			// deal with the old photo
-			Log.v(TAG, "Attempting to decrement old photo record and delete if neccessary");
-			pRecord = db.PHOTOTABLE.readOne(oldPhotoHash);
-			if (pRecord != null) {
-				// decrement the refCount of the old photo
-				pRecord.refCount--;
-				
-				if (pRecord.refCount <= 0) {
-					// delete if needed
-					db.PHOTOTABLE.delete(pRecord.hash);
-					Log.i(TAG, "Deleted old photo record for "+pRecord.file);
-					boolean deleted = pRecord.file.delete();
-					if (!deleted) {
-						Log.w(TAG, "photo file "+pRecord.file.getCanonicalPath()+" failed to be deleted when refCount reached 0");
-					}
-					pRecord = null;
-				} else {
-					// else save the change
-					db.PHOTOTABLE.write(pRecord);
-				}
-			}
+			decrementPhotoDB(db, oldPhotoHash);
 
 			
 			Log.v(TAG, "Successfully set "+photoType+" to "+photoFile.getCanonicalPath());
@@ -360,6 +326,48 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			throw new DB461Exception(e.getMessage());
 		} finally {
 			if ( db != null ) db.discard();
+		}
+	}
+
+	synchronized private void incrementPhotoDB(SNetDB461 db, int photoHash, String photoFileName) throws DB461Exception {
+		Log.v(TAG, "Attempting to increment record for new photo");
+		// check the db for the new photo
+		PhotoRecord pRecord = db.PHOTOTABLE.readOne(photoHash);
+		if (pRecord == null) {
+			// create a new photo in the db
+			pRecord = db.PHOTOTABLE.createRecord();
+			pRecord.hash = photoHash;
+			pRecord.refCount = 0;
+			pRecord.file = new File(photoFileName);
+			Log.v(TAG, "Created new photo record in db");
+		}
+		// increment the refCount of the new photo
+		pRecord.refCount++;
+		db.PHOTOTABLE.write(pRecord);
+		Log.d(TAG, "Modified photo record "+pRecord);
+	}
+
+	synchronized private void decrementPhotoDB(SNetDB461 db, int photoHash) throws DB461Exception, IOException {
+		// deal with the old photo
+		Log.v(TAG, "Attempting to decrement old photo record and delete if neccessary");
+		PhotoRecord pRecord = db.PHOTOTABLE.readOne(photoHash);
+		if (pRecord != null) {
+			// decrement the refCount of the old photo
+			pRecord.refCount--;
+			
+			if (pRecord.refCount <= 0) {
+				// delete if needed
+				db.PHOTOTABLE.delete(pRecord.hash);
+				Log.i(TAG, "Deleted old photo record for "+pRecord.file);
+				boolean deleted = pRecord.file.delete();
+				if (!deleted) {
+					Log.w(TAG, "photo file "+pRecord.file.getCanonicalPath()+" failed to be deleted when refCount reached 0");
+				}
+				pRecord = null;
+			} else {
+				// else save the change
+				db.PHOTOTABLE.write(pRecord);
+			}
 		}
 	}
 	
@@ -448,8 +456,23 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 					Log.v(TAG, "old record for "+name+" was "+cRecord);
 					Log.d(TAG, "updating record for "+name+" to "+recordUpdate);
 					cRecord.generation = genNum;
-					cRecord.myPhotoHash = recordUpdate.getInt("myphotohash");
-					cRecord.chosenPhotoHash = recordUpdate.getInt("chosenphotohash");
+
+					int oldHash = cRecord.myPhotoHash;
+					int newHash = recordUpdate.getInt("myphotohash");
+					if (oldHash != newHash) {
+						incrementPhotoDB(db, newHash, (""+newHash));
+						decrementPhotoDB(db, oldHash);
+
+						cRecord.myPhotoHash = newHash;
+					}
+					oldHash = cRecord.chosenPhotoHash;
+					newHash = recordUpdate.getInt("chosenphotohash");
+					if (oldHash != newHash) {
+						incrementPhotoDB(db, newHash, (""+newHash));
+						decrementPhotoDB(db, oldHash);
+
+						cRecord.chosenPhotoHash = newHash;
+					}
 				} else {
 					// something went wrong
 					Log.i(TAG, "fetchUpdates returned record for "+name+", but was not more recent than ours");
