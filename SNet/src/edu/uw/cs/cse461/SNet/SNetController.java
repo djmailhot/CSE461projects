@@ -25,7 +25,6 @@ import edu.uw.cs.cse461.Net.DDNS.DDNSFullName;
 import edu.uw.cs.cse461.Net.DDNS.DDNSFullNameInterface;
 import edu.uw.cs.cse461.Net.DDNS.DDNSRRecord;
 import edu.uw.cs.cse461.Net.DDNS.DDNSResolverService;
-import edu.uw.cs.cse461.Net.DDNS.DDNSException.DDNSRuntimeException;
 import edu.uw.cs.cse461.Net.RPC.RPCCall;
 import edu.uw.cs.cse461.Net.RPC.RPCCallableMethod;
 import edu.uw.cs.cse461.Net.RPC.RPCService;
@@ -45,8 +44,7 @@ import edu.uw.cs.cse461.util.Log;
  */
 public class SNetController extends NetLoadableService implements HTTPProviderInterface {
 	private static final String TAG="SNetController";
-	private static final int FETCH_PHOTO_DEFAULT_MAX_LENGTH = (1 << 15); // file buffer length of 32Kb.
-
+	
 	/**
 	 * @return true if this is a valid generation number
 	 */
@@ -83,6 +81,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		try {
 			db = new SNetDB461(mDBName);
 			db.registerMember( user );
+			setFriend(user, true); // Because our current implementation only stores the photos of friends
 			db.registerMember( new DDNSFullName("") );  // and the root
 		} catch (Exception e) {
 			Log.e(TAG, "registerBaseUsers caught exception: " + e.getMessage());
@@ -133,7 +132,12 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		SNetDB461 db = null;
 		try {
 			db = new SNetDB461(mDBName);
-			db.checkAndFixDB(galleryDir);
+			Log.d(TAG, galleryDir.getCanonicalPath());
+			if (!galleryDir.getAbsolutePath().equals(galleryDir.getCanonicalPath())) {
+				db.checkAndFixDB(new File(galleryDir.getAbsolutePath()));
+			} else {
+				db.checkAndFixDB(galleryDir);
+			}
 		} catch (Exception e) {
 			throw new DB461Exception("fixDB caught exception: "+ e.getMessage());
 		}
@@ -245,8 +249,26 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				Log.e(TAG, msg);
 				throw new DB461Exception(msg);
 			}
-			record.isFriend = isfriend;
-			db.COMMUNITYTABLE.write(record);
+			if (record.isFriend != isfriend) {
+				// Makes sure we don't get incorrect data because we friended the same person multiple times without unfriending them first
+				record.isFriend = isfriend;			
+				db.COMMUNITYTABLE.write(record);
+			
+				// Need to update the photo table to reflect totals, as we currently only keep track of our friends
+				// photos and want to delete a photo when no friend uses it.  Therefore, adding new friends means that
+				// we now care about their photos, so if we store the file for this photo, we should ensure it sticks
+				// around longer, and deleting friends means we care less about that particular photo
+				if (isfriend) {
+					incrementPhotoDB(db, record.myPhotoHash, null);
+					incrementPhotoDB(db, record.chosenPhotoHash, null);
+				} else {
+					decrementPhotoDB(db, record.myPhotoHash);
+					decrementPhotoDB(db, record.chosenPhotoHash);
+				}
+			}
+			
+		} catch (IOException e) { 
+			Log.e(TAG, "Failed to alter the database for the member's photos");
 		} finally {
 			if ( db != null ) db.discard();
 		}
@@ -280,7 +302,6 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		try {
 			db = new SNetDB461(mDBName);
 			CommunityRecord cRecord;
-			PhotoRecord pRecord;
 			int photoHash;
 			int oldPhotoHash;
 
@@ -348,14 +369,25 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 			// create a new photo in the db
 			pRecord = db.PHOTOTABLE.createRecord();
 			pRecord.hash = photoHash;
-			pRecord.refCount = 0;
+			pRecord.refCount = 1;
 			pRecord.file = new File(photoFileName);
-			Log.v(TAG, "Created new photo record in db");
+			db.PHOTOTABLE.write(pRecord);
+			try {
+				Log.v(TAG, "Created new photo record in db at: " + pRecord.file.getCanonicalPath());
+			} catch (IOException e) {
+				Log.e(TAG, "Sigh ... ");
+			}
+		} else if (pRecord != null) {
+			// increment the refCount of the new photo
+			pRecord.refCount++;
+			Log.d(TAG, "Refcount is now: " + pRecord.refCount);
+			
+			db.PHOTOTABLE.write(pRecord);
+			Log.d(TAG, "Modified photo record "+pRecord);
+		} else {
+			Log.d(TAG, "We were provided a null file name for a photo we did not already have, therefore no record was created");
 		}
-		// increment the refCount of the new photo
-		pRecord.refCount++;
-		db.PHOTOTABLE.write(pRecord);
-		Log.d(TAG, "Modified photo record "+pRecord);
+		
 	}
 
 	synchronized private void decrementPhotoDB(SNetDB461 db, int photoHash) throws DB461Exception, IOException {
@@ -363,6 +395,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 		Log.v(TAG, "Attempting to decrement old photo record and delete if neccessary");
 		PhotoRecord pRecord = db.PHOTOTABLE.readOne(photoHash);
 		if (pRecord != null) {
+			Log.d(TAG, "Old count: " + pRecord.refCount + " new count: " + (pRecord.refCount - 1));
 			// decrement the refCount of the old photo
 			pRecord.refCount--;
 			
@@ -609,8 +642,7 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 					myVals.name = new DDNSFullName(name);
 					myVals.isFriend = false;
 				}
-				myVals.generation = genNum; // TODO Creation of records should not happen
-
+				myVals.generation = genNum; 
 				
 				int oldHash = myVals.myPhotoHash;
 				int newHash = theirVals.getInt("myphotohash");
@@ -805,7 +837,6 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 				try {
 					outputStream.close();
 				} catch (IOException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}
@@ -871,7 +902,6 @@ public class SNetController extends NetLoadableService implements HTTPProviderIn
 
 	@Override
 	public String dumpState() {
-		// TODO Auto-generated method stub
 		return null;
 	}
 	

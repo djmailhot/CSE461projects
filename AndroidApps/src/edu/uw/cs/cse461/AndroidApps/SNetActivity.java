@@ -136,7 +136,6 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
 			SNetDB461 database = new SNetDB461(pathName + "/" + mMyName + "snet.db");
 			RecordSet<CommunityRecord> records = database.COMMUNITYTABLE.readAll();
 			for(CommunityRecord rec: records) {
-				Log.d(TAG, "Adding value " + rec.name.toString() + " to the list");
 				names.add(rec.name.toString());
 			}
 			// Populates the list of names with those included in the community
@@ -199,6 +198,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     	          android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
     	intent.setType("image/*");
     	startActivityForResult(intent, CHOOSE_PICTURE_ACTIVITY_REQUEST_CODE);
+    	BackgroundToast.showToast(ContextManager.getActivityContext(), "New photo set as chosen", Toast.LENGTH_LONG);
     }
     
     /**
@@ -209,7 +209,8 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     	Log.d(TAG, "Take Picture selected");
     	Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
     	// Do I need to specify where the gallery is to store things? YES
-    	 startActivityForResult(intent, CAPTURE_IMAGE_ACTIVITY_REQUEST_CODE);
+    	startActivityForResult(intent, CAPTURE_IMAGE_ACTIVITY_REQUEST_CODE);
+    	BackgroundToast.showToast(ContextManager.getActivityContext(), "Newly created photo now myPhoto", Toast.LENGTH_LONG);
     }
     
     /**
@@ -280,6 +281,10 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
         		} catch (IOException e) {
         			Log.e(TAG, "We failed to get the path name");
         		}
+        		// Then tries to update the gallery viewer
+                sendBroadcast(new Intent(
+                    Intent.ACTION_MEDIA_MOUNTED,
+                    Uri.parse("file://" + Environment.getExternalStorageDirectory())));
         	} else if (resultCode == RESULT_CANCELED) { 
         		Log.d(TAG, "User cancelled selected a new chosen photo");
         	} else {
@@ -335,6 +340,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     	Log.d(TAG, "Befriend selected");
     	try {
 			snet.setFriend(new DDNSFullName(currentSelection), true);
+			BackgroundToast.showToast(ContextManager.getActivityContext(), "We are now friends with: " + currentSelection, Toast.LENGTH_LONG);
 		} catch (DB461Exception e) {
 			Log.e(TAG, "Failed to set the selected name as a friend");
 		}
@@ -348,6 +354,12 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     	Log.d(TAG, "Contact selected");
     	try {
 			snet.fetchUpdatesCaller(currentSelection, mGallery);
+			Log.d(TAG, "member connecting to is: " + currentSelection);
+			Log.d(TAG, "gallery name sent is " + mGallery);
+			// Then tries to update the gallery viewer
+            sendBroadcast(new Intent(
+                Intent.ACTION_MEDIA_MOUNTED,
+                Uri.parse("file://" + Environment.getExternalStorageDirectory())));
 		} catch (DB461Exception e) {
 			Log.e(TAG, "Failed to contact the community member for updates");
 		}
@@ -361,6 +373,7 @@ public class SNetActivity extends NetLoadableAndroidApp implements OnItemSelecte
     	Log.d(TAG, "Unfriend selected");
     	try {
 			snet.setFriend(new DDNSFullName(currentSelection), false);
+			BackgroundToast.showToast(ContextManager.getActivityContext(), "We are no longer friends with " + currentSelection, Toast.LENGTH_LONG);
 		} catch (DB461Exception e) {
 			Log.e(TAG, "Failed to set the selected name as no longer a friend");
 		}
